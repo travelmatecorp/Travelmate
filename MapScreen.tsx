@@ -170,7 +170,7 @@ export default function MapScreen({ onNavigate, auth }) {
         <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("rewards")}>
           <MaterialCommunityIcons name="bookmark-outline" size={24} color="black" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.activeNavItem]}>
+        <TouchableOpacity style={[styles.navItem, styles.activeNavItem]} onPress={() => onNavigate("main")}>
           <Ionicons name="location" size={24} color="#cf3a23" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("messages")}>

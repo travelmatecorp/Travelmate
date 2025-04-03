@@ -90,7 +90,7 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
             <View style={styles.logoCircle}>
               <Ionicons name="airplane" size={40} color="#cf3a23" />
             </View>
-            <Text style={styles.logoText}>TravelApp</Text>
+            <Text style={styles.logoText}>TravelMate</Text>
           </View>
 
           <View style={styles.headerContainer}>

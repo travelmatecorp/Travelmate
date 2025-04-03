@@ -13,7 +13,7 @@ const cardWidth = width * 0.7
 const hotelData = [
   {
     id: "1",
-    name: "Hotel Trenquelauquen",
+    name: "Hotel Volador",
     image:
       "https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
     price: "$120/night",
@@ -29,7 +29,7 @@ const hotelData = [
   },
   {
     id: "3",
-    name: "Grand Plaza Hotel",
+    name: "Grand Simio Hotel",
     image:
       "https://images.unsplash.com/photo-1564501049412-61c2a3083791?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
     price: "$150/night",
@@ -37,7 +37,7 @@ const hotelData = [
   },
   {
     id: "4",
-    name: "Seaside Resort",
+    name: "Pescado Resort",
     image:
       "https://images.unsplash.com/photo-1571896349842-33c89424de2d?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
     price: "$200/night",
@@ -45,7 +45,7 @@ const hotelData = [
   },
   {
     id: "5",
-    name: "Mountain View Lodge",
+    name: "Mountain Dumbo Views",
     image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
     price: "$180/night",
     rating: 4.6,
@@ -264,8 +264,8 @@ export default function MainScreen({ onNavigate, auth }) {
         <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("rewards")}>
           <MaterialCommunityIcons name="bookmark-outline" size={24} color="black" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.activeNavItem]} onPress={() => onNavigate("map")}>
-          <Ionicons name="location" size={24} color="#cf3a23" />
+        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("map")}>
+          <Ionicons name="location-outline" size={24} color="black" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("messages")}>
           <Feather name="message-square" size={24} color="black" />
