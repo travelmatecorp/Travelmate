@@ -14,10 +14,11 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
+import { register } from "./api" // Changed from "../api" to "./api"
 
 export default function RegisterScreen({ onRegister, onNavigate }) {
   // Form state
-  const [name, setName] = useState("")
+  const [nombre, setNombre] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -29,7 +30,7 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
   // Handle registration submission
   const handleRegisterSubmit = async () => {
     // Basic validation
-    if (!name || !email || !password || !confirmPassword) {
+    if (!nombre || !email || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields")
       return
     }
@@ -47,32 +48,23 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
     try {
       setIsLoading(true)
 
-      // In a real app, this would be an API call to your backend
-      // Example:
-      // const response = await fetch('https://your-api.com/register', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ name, email, password }),
-      // });
-      // const data = await response.json();
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Mock successful registration
-      const mockUserData = {
-        id: "123",
-        name: name,
-        email: email,
-        // Other user data that would be stored in your database
-      }
+      // Call the register API
+      const userData = await register({
+        nombre,
+        email,
+        password,
+        tipo: "normal" // Default user type
+      })
 
       // Call the register handler from App.js
-      onRegister(mockUserData)
+      onRegister(userData)
+      
+      // Navigate to login screen
+      Alert.alert("Success", "Account created successfully! Please log in.", [
+        { text: "OK", onPress: () => onNavigate("login") }
+      ])
     } catch (error) {
-      Alert.alert("Registration Failed", error.message || "Please try again later")
+      Alert.alert("Registration Failed", error.error || "Please try again later")
     } finally {
       setIsLoading(false)
     }
@@ -99,7 +91,7 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
           </View>
 
           <View style={styles.formContainer}>
-            {/* Full Name Field - Will be stored in the users table */}
+            {/* Full Name Field */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Full Name</Text>
               <View style={styles.inputWrapper}>
@@ -107,14 +99,14 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
                 <TextInput
                   style={styles.input}
                   placeholder="Your full name"
-                  value={name}
-                  onChangeText={setName}
+                  value={nombre}
+                  onChangeText={setNombre}
                   editable={!isLoading}
                 />
               </View>
             </View>
 
-            {/* Email Field - Will be stored in the users table and used for authentication */}
+            {/* Email Field */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Email</Text>
               <View style={styles.inputWrapper}>
@@ -131,7 +123,7 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
               </View>
             </View>
 
-            {/* Password Field - Will be stored as a hashed value in the users table */}
+            {/* Password Field */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.inputWrapper}>
@@ -150,7 +142,7 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
               </View>
             </View>
 
-            {/* Confirm Password Field - Used for validation only, not stored */}
+            {/* Confirm Password Field */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Confirm Password</Text>
               <View style={styles.inputWrapper}>
@@ -169,7 +161,7 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
               </View>
             </View>
 
-            {/* Terms Agreement - Will be stored in the users table */}
+            {/* Terms Agreement */}
             <View style={styles.termsContainer}>
               <TouchableOpacity
                 style={styles.checkbox}
@@ -188,7 +180,7 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
               </Text>
             </View>
 
-            {/* Register Button - Will create a new user in the database */}
+            {/* Register Button */}
             <TouchableOpacity
               style={[styles.registerButton, (!agreeToTerms || isLoading) && styles.disabledButton]}
               onPress={handleRegisterSubmit}
@@ -332,4 +324,3 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 })
-

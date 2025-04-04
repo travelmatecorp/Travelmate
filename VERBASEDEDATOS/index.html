@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+    
+    <script>
+        async function cargarDatos() {
+            try {
+                const usuarios = await fetch('http://localhost:3001/api/usuarios').then(res => res.json());
+                const lugares = await fetch('http://localhost:3001/api/lugares').then(res => res.json());
+                const reservas = await fetch('http://localhost:3001/api/reservas').then(res => res.json());
+                
+                document.getElementById("usuarios").innerHTML = usuarios.map(u => `<tr><td>${u.id}</td><td>${u.nombre}</td><td>${u.email}</td><td>${u.tipo}</td></tr>`).join("");
+                document.getElementById("lugares").innerHTML = lugares.map(l => `<tr><td>${l.id}</td><td>${l.nombre}</td><td>${l.ubicacion}</td><td>${l.tipo}</td></tr>`).join("");
+                document.getElementById("reservas").innerHTML = reservas.map(r => `<tr><td>${r.id}</td><td>${r.usuario_id}</td><td>${r.lugar_id}</td><td>${r.fecha_inicio}</td><td>${r.fecha_fin}</td><td>${r.estado}</td></tr>`).join("");
+            } catch (error) {
+                console.error("Error al cargar datos", error);
+            }
+        }
+    </script>
+</head>
+<body onload="cargarDatos()">
+    <h1>Panel de Control</h1>
+    <h2>Usuarios</h2>
+    <table border="1">
+        <tr><th>ID</th><th>Nombre</th><th>Email</th><th>Tipo</th></tr>
+        <tbody id="usuarios"></tbody>
+    </table>
+    
+    <h2>Lugares</h2>
+    <table border="1">
+        <tr><th>ID</th><th>Nombre</th><th>Ubicación</th><th>Tipo</th></tr>
+        <tbody id="lugares"></tbody>
+    </table>
+    
+    <h2>Reservas</h2>
+    <table border="1">
+        <tr><th>ID</th><th>Usuario ID</th><th>Lugar ID</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th></tr>
+        <tbody id="reservas"></tbody>
+    </table>
+</body>
+</html>

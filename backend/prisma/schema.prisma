@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["tracing"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model lugares {
+  id          Int          @id @default(autoincrement())
+  nombre      String       @db.VarChar(255)
+  descripcion String?      @db.Text
+  ubicacion   String       @db.VarChar(255)
+  tipo        lugares_tipo
+  creado_en   DateTime?    @default(now()) @db.Timestamp(0)
+}
+
+model propietarios_lugares {
+  propietario_id Int
+  lugar_id       Int
+
+  @@id([propietario_id, lugar_id])
+  @@index([propietario_id, lugar_id], map: "idx_propietarios_lugares")
+  @@index([lugar_id], map: "lugar_id")
+}
+
+model reservas {
+  id           Int              @id @default(autoincrement())
+  usuario_id   Int
+  lugar_id     Int
+  fecha_inicio DateTime         @db.DateTime(0)
+  fecha_fin    DateTime         @db.DateTime(0)
+  estado       reservas_estado? @default(pendiente)
+  creado_en    DateTime?        @default(now()) @db.Timestamp(0)
+
+  @@index([lugar_id], map: "idx_reservas_lugar")
+  @@index([usuario_id], map: "idx_reservas_usuario")
+}
+
+model usuarios {
+  id            Int           @id @default(autoincrement())
+  nombre        String        @db.VarChar(100)
+  email         String        @unique(map: "email") @db.VarChar(100)
+  password_hash String        @db.VarChar(255)
+  tipo          usuarios_tipo
+  creado_en     DateTime?     @default(now()) @db.Timestamp(0)
+}
+
+enum lugares_tipo {
+  restaurante
+  alojamiento
+  auto
+  excursion
+  otro
+}
+
+enum usuarios_tipo {
+  propietario
+  normal
+}
+
+enum reservas_estado {
+  pendiente
+  confirmada
+  cancelada
+}
+

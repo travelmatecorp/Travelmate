@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaProvider } from "react-native-safe-area-context"
+import { View, ActivityIndicator } from "react-native"
 import MainScreen from "./MainScreen"
 import AccountScreen from "./AccountScreen"
 import LoginScreen from "./LoginScreen"
@@ -11,8 +12,9 @@ import MessagesScreen from "./MessagesScreen"
 import RewardsScreen from "./RewardsScreen"
 import CalendarScreen from "./CalendarScreen"
 import MapScreen from "./MapScreen"
+import { getData } from "./storage"
 
-// Also ensure we initialize auth with default values to prevent undefined errors
+// Initialize auth with default values
 const initialAuthState = {
   isLoggedIn: false,
   user: null,
@@ -22,14 +24,37 @@ const initialAuthState = {
 export default function App() {
   // Authentication state
   const [auth, setAuth] = useState(initialAuthState)
+  const [loading, setLoading] = useState(true)
 
   // Navigation state
   const [currentScreen, setCurrentScreen] = useState("main")
 
+  // Check for stored authentication on app start
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const token = await getData("token")
+        const user = await getData("user")
+
+        if (token && user) {
+          setAuth({
+            isLoggedIn: true,
+            user,
+            token,
+          })
+        }
+      } catch (error) {
+        console.error("Error checking auth:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkAuth()
+  }, [])
+
   // Authentication handlers
   const handleLogin = (userData, token) => {
-    // In a real app, you would store the token securely
-    // and possibly use a state management library like Redux
     setAuth({
       isLoggedIn: true,
       user: userData,
@@ -39,19 +64,25 @@ export default function App() {
   }
 
   const handleLogout = () => {
-    // Clear auth state and any stored tokens
     setAuth(initialAuthState)
     setCurrentScreen("main")
   }
 
   const handleRegister = (userData) => {
-    // In a real app, you would handle registration success
-    // and possibly auto-login the user
     setCurrentScreen("login")
   }
 
   const handleNavigate = (screen) => {
     setCurrentScreen(screen)
+  }
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#cf3a23" />
+      </View>
+    )
   }
 
   // Screen renderer
@@ -85,4 +116,3 @@ export default function App() {
     </SafeAreaProvider>
   )
 }
-

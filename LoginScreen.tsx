@@ -14,6 +14,7 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
+import { login } from "./api" // Changed from "../api" to "./api"
 
 export default function LoginScreen({ onLogin, onNavigate }) {
   // Form state
@@ -33,34 +34,16 @@ export default function LoginScreen({ onLogin, onNavigate }) {
     try {
       setIsLoading(true)
 
-      // In a real app, this would be an API call to your backend
-      // Example:
-      // const response = await fetch('https://your-api.com/login', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ email, password }),
-      // });
-      // const data = await response.json();
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Mock successful login
-      const mockUserData = {
-        id: "123",
-        name: "John Doe",
-        email: email,
-        // Other user data from your database
-      }
-
-      const mockToken = "mock-jwt-token"
+      // Call the login API
+      const { user, token } = await login({
+        email,
+        password
+      })
 
       // Call the login handler from App.js
-      onLogin(mockUserData, mockToken)
+      onLogin(user, token)
     } catch (error) {
-      Alert.alert("Login Failed", error.message || "Please try again later")
+      Alert.alert("Login Failed", error.error || "Please try again later")
     } finally {
       setIsLoading(false)
     }
@@ -87,7 +70,7 @@ export default function LoginScreen({ onLogin, onNavigate }) {
           </View>
 
           <View style={styles.formContainer}>
-            {/* Email Field - Will be stored in the users table in the database */}
+            {/* Email Field */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Email</Text>
               <View style={styles.inputWrapper}>
@@ -104,7 +87,7 @@ export default function LoginScreen({ onLogin, onNavigate }) {
               </View>
             </View>
 
-            {/* Password Field - Will be stored as a hashed value in the users table */}
+            {/* Password Field */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.inputWrapper}>
@@ -123,12 +106,12 @@ export default function LoginScreen({ onLogin, onNavigate }) {
               </View>
             </View>
 
-            {/* Forgot Password - Will trigger a password reset flow in the backend */}
+            {/* Forgot Password */}
             <TouchableOpacity style={styles.forgotPasswordButton} disabled={isLoading}>
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
 
-            {/* Login Button - Will authenticate with the backend */}
+            {/* Login Button */}
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.disabledButton]}
               onPress={handleLoginSubmit}
@@ -143,7 +126,7 @@ export default function LoginScreen({ onLogin, onNavigate }) {
               <View style={styles.orLine} />
             </View>
 
-            {/* Social Login Buttons - Would connect to OAuth providers */}
+            {/* Social Login Buttons */}
             <View style={styles.socialButtonsContainer}>
               <TouchableOpacity style={styles.socialButton} disabled={isLoading}>
                 <Ionicons name="logo-google" size={20} color="#DB4437" />
@@ -315,4 +298,3 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 })
-

@@ -1,17 +1,55 @@
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from "react-native"
+"use client"
+
+import { useState, useEffect } from "react"
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
+import { getProfile, logout } from "./api" // Changed from "../api" to "./api"
 
-export default function AccountScreen({ onNavigate, onLogout, user }) {
-  // In a real app, user data would come from the backend
-  const userData = user || {
-    name: "John Doe",
-    email: "john.doe@example.com",
-    stats: {
-      trips: 12,
-      bookmarks: 43,
-      reviews: 9,
-    },
+export default function AccountScreen({ onNavigate, onLogout, user: initialUser }) {
+  const [user, setUser] = useState(initialUser || null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    // Fetch the latest user data from the server
+    const fetchUserData = async () => {
+      try {
+        setLoading(true)
+        const userData = await getProfile()
+        setUser(userData)
+      } catch (error) {
+        console.error('Error fetching user data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUserData()
+  }, [])
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await logout()
+      onLogout()
+    } catch (error) {
+      console.error('Error logging out:', error)
+    }
+  }
+
+  if (loading && !user) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#cf3a23" />
+      </View>
+    )
+  }
+
+  // Calculate stats from user data
+  const stats = {
+    trips: user?.reservas?.length || 0,
+    bookmarks: 0, // This could be populated from a bookmarks table if you add one
+    reviews: 0, // This could be populated from a reviews table if you add one
   }
 
   return (
@@ -29,8 +67,8 @@ export default function AccountScreen({ onNavigate, onLogout, user }) {
               <Ionicons name="camera" size={16} color="white" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.profileName}>{userData.name}</Text>
-          <Text style={styles.profileEmail}>{userData.email}</Text>
+          <Text style={styles.profileName}>{user?.nombre || "User"}</Text>
+          <Text style={styles.profileEmail}>{user?.email || "user@example.com"}</Text>
           <TouchableOpacity style={styles.editProfileButton}>
             <Text style={styles.editProfileButtonText}>Edit Profile</Text>
           </TouchableOpacity>
@@ -38,17 +76,17 @@ export default function AccountScreen({ onNavigate, onLogout, user }) {
 
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{userData.stats.trips}</Text>
+            <Text style={styles.statNumber}>{stats.trips}</Text>
             <Text style={styles.statLabel}>Trips</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{userData.stats.bookmarks}</Text>
+            <Text style={styles.statNumber}>{stats.bookmarks}</Text>
             <Text style={styles.statLabel}>Bookmarks</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{userData.stats.reviews}</Text>
+            <Text style={styles.statNumber}>{stats.reviews}</Text>
             <Text style={styles.statLabel}>Reviews</Text>
           </View>
         </View>
@@ -103,7 +141,7 @@ export default function AccountScreen({ onNavigate, onLogout, user }) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
 
@@ -136,6 +174,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   contentContainer: {
     flex: 1,
@@ -272,4 +315,3 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
 })
-
