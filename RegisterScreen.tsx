@@ -14,7 +14,7 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
-import { register } from "./api" // Changed from "../api" to "./api"
+import { register } from "./api"
 
 export default function RegisterScreen({ onRegister, onNavigate }) {
   // Form state
@@ -22,6 +22,7 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [userType, setUserType] = useState("normal") // Default to traveler/tourist
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
@@ -53,15 +54,15 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
         nombre,
         email,
         password,
-        tipo: "normal" // Default user type
+        tipo: userType, // Use the selected user type
       })
 
       // Call the register handler from App.js
       onRegister(userData)
-      
+
       // Navigate to login screen
       Alert.alert("Success", "Account created successfully! Please log in.", [
-        { text: "OK", onPress: () => onNavigate("login") }
+        { text: "OK", onPress: () => onNavigate("login") },
       ])
     } catch (error) {
       Alert.alert("Registration Failed", error.error || "Please try again later")
@@ -157,6 +158,56 @@ export default function RegisterScreen({ onRegister, onNavigate }) {
                 />
                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} disabled={isLoading}>
                   <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* User Type Selection */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>I am a:</Text>
+              <View style={styles.userTypeContainer}>
+                <TouchableOpacity
+                  style={[styles.userTypeOption, userType === "normal" && styles.userTypeSelected]}
+                  onPress={() => setUserType("normal")}
+                  disabled={isLoading}
+                >
+                  <Ionicons
+                    name="person"
+                    size={24}
+                    color={userType === "normal" ? "#fff" : "#666"}
+                    style={styles.userTypeIcon}
+                  />
+                  <View style={styles.userTypeTextContainer}>
+                    <Text style={[styles.userTypeTitle, userType === "normal" && styles.userTypeTextSelected]}>
+                      Traveler
+                    </Text>
+                    <Text style={[styles.userTypeDescription, userType === "normal" && styles.userTypeTextSelected]}>
+                      I want to book places
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.userTypeOption, userType === "propietario" && styles.userTypeSelected]}
+                  onPress={() => setUserType("propietario")}
+                  disabled={isLoading}
+                >
+                  <Ionicons
+                    name="home"
+                    size={24}
+                    color={userType === "propietario" ? "#fff" : "#666"}
+                    style={styles.userTypeIcon}
+                  />
+                  <View style={styles.userTypeTextContainer}>
+                    <Text style={[styles.userTypeTitle, userType === "propietario" && styles.userTypeTextSelected]}>
+                      Host
+                    </Text>
+                    <Text
+                      style={[styles.userTypeDescription, userType === "propietario" && styles.userTypeTextSelected]}
+                    >
+                      I want to list my places
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               </View>
             </View>
@@ -276,6 +327,43 @@ const styles = StyleSheet.create({
     height: 48,
     fontSize: 16,
   },
+  userTypeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  userTypeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "48%",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    backgroundColor: "white",
+    padding: 12,
+  },
+  userTypeSelected: {
+    backgroundColor: "#cf3a23",
+    borderColor: "#cf3a23",
+  },
+  userTypeIcon: {
+    marginRight: 12,
+  },
+  userTypeTextContainer: {
+    flex: 1,
+  },
+  userTypeTitle: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  userTypeDescription: {
+    fontSize: 12,
+    color: "#666",
+  },
+  userTypeTextSelected: {
+    color: "white",
+  },
   termsContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -324,3 +412,4 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 })
+

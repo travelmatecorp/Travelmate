@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { StyleSheet, View, Text, ScrollView, Image, TextInput, TouchableOpacity, Dimensions } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, MaterialIcons, FontAwesome5, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
@@ -148,6 +148,45 @@ const categories = [
 
 export default function MainScreen({ onNavigate, auth }) {
   const [activeCategory, setActiveCategory] = useState("Hoteles")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [searchResults, setSearchResults] = useState([])
+
+  // Combine all data for search
+  const allPlaces = [
+    ...hotelData.map((item) => ({ ...item, type: "hotel" })),
+    ...restaurantData.map((item) => ({ ...item, type: "restaurant" })),
+    ...excursionData.map((item) => ({ ...item, type: "excursion" })),
+  ]
+
+  // Update search results when query changes
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setSearchResults([])
+      setShowSuggestions(false)
+      return
+    }
+
+    const query = searchQuery.toLowerCase()
+
+    // Improved search to match at the beginning of words for better autocomplete
+    const results = allPlaces
+      .filter((place) => {
+        const placeName = place.name.toLowerCase()
+        // Match if the query is at the start of the name or after a space
+        return placeName.startsWith(query) || placeName.includes(" " + query) || placeName.includes(query)
+      })
+      .slice(0, 5) // Limit to 5 suggestions
+
+    setSearchResults(results)
+    setShowSuggestions(results.length > 0)
+  }, [searchQuery])
+
+  const handleSelectSuggestion = (suggestion) => {
+    setSearchQuery(suggestion.name)
+    setShowSuggestions(false)
+    // Here you could navigate to the place details or filter the listings
+  }
 
   const renderCategoryIcon = (item) => {
     switch (item.type) {
@@ -193,9 +232,49 @@ export default function MainScreen({ onNavigate, auth }) {
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
           <Ionicons name="filter" size={24} color="black" style={styles.filterIcon} />
-          <TextInput style={styles.searchInput} placeholder="" placeholderTextColor="#999" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search for places..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={() => {
+              if (searchQuery.trim() !== "" && searchResults.length > 0) {
+                setShowSuggestions(true)
+              }
+            }}
+            onBlur={() => {
+              // Delay hiding suggestions to allow for selection
+              setTimeout(() => setShowSuggestions(false), 200)
+            }}
+          />
           <Ionicons name="search" size={24} color="#747775" style={styles.searchIcon} />
         </View>
+
+        {showSuggestions && searchResults.length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            {searchResults.map((result) => (
+              <TouchableOpacity
+                key={`${result.type}-${result.id}`}
+                style={styles.suggestionItem}
+                onPress={() => handleSelectSuggestion(result)}
+              >
+                <Ionicons
+                  name={
+                    result.type === "hotel"
+                      ? "bed-outline"
+                      : result.type === "restaurant"
+                        ? "restaurant-outline"
+                        : "walk"
+                  }
+                  size={20}
+                  color="#666"
+                />
+                <Text style={styles.suggestionText}>{result.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -286,6 +365,8 @@ const styles = StyleSheet.create({
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+    position: "relative",
+    zIndex: 10,
   },
   searchBar: {
     flexDirection: "row",
@@ -310,6 +391,31 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     marginLeft: 8,
+  },
+  suggestionsContainer: {
+    position: "absolute",
+    top: 60,
+    left: 16,
+    right: 16,
+    backgroundColor: "white",
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  suggestionText: {
+    marginLeft: 8,
+    fontSize: 16,
   },
   categoriesContainer: {
     maxHeight: 80,

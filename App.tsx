@@ -12,6 +12,7 @@ import MessagesScreen from "./MessagesScreen"
 import RewardsScreen from "./RewardsScreen"
 import CalendarScreen from "./CalendarScreen"
 import MapScreen from "./MapScreen"
+import AddPlaceScreen from "./AddPlaceScreen"
 import { getData } from "./storage"
 
 // Initialize auth with default values
@@ -73,6 +74,14 @@ export default function App() {
   }
 
   const handleNavigate = (screen) => {
+    // Check if the screen requires authentication
+    if ((screen === "addPlace" || screen === "account") && !auth.isLoggedIn) {
+      // If not logged in and trying to access protected screens, redirect to login
+      setCurrentScreen("login")
+      return
+    }
+
+    // Otherwise, navigate normally
     setCurrentScreen(screen)
   }
 
@@ -104,6 +113,8 @@ export default function App() {
         return <CalendarScreen onNavigate={handleNavigate} auth={auth} />
       case "map":
         return <MapScreen onNavigate={handleNavigate} auth={auth} />
+      case "addPlace":
+        return <AddPlaceScreen onNavigate={handleNavigate} auth={auth} />
       default:
         return <MainScreen onNavigate={handleNavigate} auth={auth} />
     }
@@ -116,3 +127,4 @@ export default function App() {
     </SafeAreaProvider>
   )
 }
+

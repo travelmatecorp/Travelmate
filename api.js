@@ -1,13 +1,21 @@
-import axios from "axios"
 import { storeData, getData, removeData } from "./storage"
+import axios from "axios"
 
-const API_URL = process.env.API_URL || "http://172.16.1.94:3000"
+// Get API URL from environment variables
+const API_URL = process.env.API_URL || "http://192.168.0.54:3000"
 
-export const api = axios.create({
+console.log("Using API URL:", API_URL)
+
+// Create axios instance with default config
+const api = axios.create({
   baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  timeout: 10000, // 10 seconds timeout
 })
 
-// Add a request interceptor to include the token in requests
+// Add request interceptor to include auth token in requests
 api.interceptors.request.use(
   async (config) => {
     const token = await getData("token")
@@ -16,100 +24,173 @@ api.interceptors.request.use(
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error),
 )
 
-// Authentication functions
-export const register = async (userData) => {
+// User registration
+export async function register(userData) {
   try {
+    console.log("Registering user with data:", userData)
+
+    // Make API request to register endpoint
     const response = await api.post("/register", userData)
+
+    console.log("Registration response:", response.data)
     return response.data
   } catch (error) {
-    throw error.response?.data || { error: "Registration failed" }
+    console.error("Registration error:", error)
+
+    // Handle axios errors
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      throw { error: error.response.data.error || "Registration failed" }
+    } else if (error.request) {
+      // The request was made but no response was received
+      throw { error: "No response from server. Please check your connection." }
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      throw { error: error.message || "An unexpected error occurred" }
+    }
   }
 }
 
-export const login = async (credentials) => {
+// User login
+export async function login(credentials) {
   try {
+    console.log("Logging in with:", credentials.email)
+
+    // Make API request to login endpoint
     const response = await api.post("/login", credentials)
-    
+
     // Store token and user data
-    await storeData("token", response.data.token)
-    await storeData("user", JSON.stringify(response.data.user))
-    
-    return response.data
+    const { token, user } = response.data
+    await storeData("token", token)
+    await storeData("user", user)
+
+    console.log("Login successful:", user)
+    return { user, token }
   } catch (error) {
-    throw error.response?.data || { error: "Login failed" }
+    console.error("Login error:", error)
+
+    if (error.response) {
+      throw { error: error.response.data.error || "Login failed" }
+    } else if (error.request) {
+      throw { error: "No response from server. Please check your connection." }
+    } else {
+      throw { error: error.message || "An unexpected error occurred" }
+    }
   }
 }
 
-export const logout = async () => {
+// Get user profile
+export async function getProfile() {
   try {
-    await removeData("token")
-    await removeData("user")
-  } catch (error) {
-    console.error("Logout error:", error)
-  }
-}
-
-export const getProfile = async () => {
-  try {
+    // Get user profile from API
     const response = await api.get("/profile")
     return response.data
   } catch (error) {
-    throw error.response?.data || { error: "Failed to fetch profile" }
+    console.error("Get profile error:", error)
+
+    if (error.response) {
+      throw { error: error.response.data.error || "Failed to get profile" }
+    } else if (error.request) {
+      throw { error: "No response from server. Please check your connection." }
+    } else {
+      throw { error: error.message || "An unexpected error occurred" }
+    }
   }
 }
 
-export const updateProfile = async (profileData) => {
+// Logout user
+export async function logout() {
   try {
-    const response = await api.put("/profile", profileData)
-    
-    // Update stored user data
-    await storeData("user", JSON.stringify(response.data))
-    
+    // Clear stored auth data
+    await removeData("token")
+    await removeData("user")
+
+    return true
+  } catch (error) {
+    console.error("Logout error:", error)
+    // Even if there's an error, we still want to clear local storage
+    await removeData("token")
+    await removeData("user")
+    throw error
+  }
+}
+
+// Create a new place (for hosts)
+export async function createLugar(lugarData) {
+  try {
+    const response = await api.post("/lugares", lugarData)
     return response.data
   } catch (error) {
-    throw error.response?.data || { error: "Failed to update profile" }
+    console.error("Create lugar error:", error)
+
+    if (error.response) {
+      throw { error: error.response.data.error || "Failed to create place" }
+    } else if (error.request) {
+      throw { error: "No response from server. Please check your connection." }
+    } else {
+      throw { error: error.message || "An unexpected error occurred" }
+    }
   }
 }
 
-// Places functions
-export const getLugares = async () => {
+// Get all places
+export async function getLugares(filters = {}) {
   try {
-    const response = await api.get("/lugares")
+    const response = await api.get("/lugares", { params: filters })
     return response.data
   } catch (error) {
-    throw error.response?.data || { error: "Failed to fetch places" }
+    console.error("Get lugares error:", error)
+
+    if (error.response) {
+      throw { error: error.response.data.error || "Failed to get places" }
+    } else if (error.request) {
+      throw { error: "No response from server. Please check your connection." }
+    } else {
+      throw { error: error.message || "An unexpected error occurred" }
+    }
   }
 }
 
-export const getLugarById = async (id) => {
-  try {
-    const response = await api.get(`/lugares/${id}`)
-    return response.data
-  } catch (error) {
-    throw error.response?.data || { error: "Failed to fetch place" }
-  }
-}
-
-// Reservations functions
-export const createReservation = async (reservationData) => {
+// Create a reservation
+export async function createReservation(reservationData) {
   try {
     const response = await api.post("/reservas", reservationData)
     return response.data
   } catch (error) {
-    throw error.response?.data || { error: "Failed to create reservation" }
+    console.error("Create reservation error:", error)
+
+    if (error.response) {
+      throw { error: error.response.data.error || "Failed to create reservation" }
+    } else if (error.request) {
+      throw { error: "No response from server. Please check your connection." }
+    } else {
+      throw { error: error.message || "An unexpected error occurred" }
+    }
   }
 }
 
-export const getUserReservations = async () => {
+// Get user reservations
+export async function getUserReservations() {
   try {
-    const response = await api.get("/reservas")
+    const response = await api.get("/reservas/user")
     return response.data
   } catch (error) {
-    throw error.response?.data || { error: "Failed to fetch reservations" }
+    console.error("Get user reservations error:", error)
+
+    if (error.response) {
+      throw { error: error.response.data.error || "Failed to get reservations" }
+    } else if (error.request) {
+      throw { error: "No response from server. Please check your connection." }
+    } else {
+      throw { error: error.message || "An unexpected error occurred" }
+    }
   }
 }
+
+// Export the axios instance for custom requests
+export { api }
+

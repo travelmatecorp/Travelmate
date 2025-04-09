@@ -32,7 +32,7 @@ const authenticateToken = (req, res, next) => {
 // Register a new user
 app.post("/register", async (req, res) => {
   try {
-    const { nombre, email, password, tipo = "normal" } = req.body
+    const { nombre, email, password, tipo } = req.body
 
     // Validate input
     if (!nombre || !email || !password) {

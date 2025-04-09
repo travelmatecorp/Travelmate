@@ -8,8 +8,8 @@ app.use(express.json());
 
 // Configuración de la base de datos
 const db = mysql.createConnection({
-    host: '172.16.4.71', // IP de la VM
-    user: 'pepe', // Cambia esto si tienes otro usuario
+    host: '192.168.0.167', // IP de la VM
+    user: 'travelmate', // Cambia esto si tienes otro usuario
     password: 'Enzolorenzo1111*', // Asegúrate de poner la contraseña correcta
     database: 'TravelMate',
     port: 3306

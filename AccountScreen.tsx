@@ -1,14 +1,30 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } from "react-native"
+import { useState, useEffect, useRef } from "react"
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Animated } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
-import { getProfile, logout } from "./api" // Changed from "../api" to "./api"
+import { getProfile, logout } from "./api"
 
 export default function AccountScreen({ onNavigate, onLogout, user: initialUser }) {
   const [user, setUser] = useState(initialUser || null)
   const [loading, setLoading] = useState(false)
+  const scrollY = useRef(new Animated.Value(0)).current
+  const [isScrolling, setIsScrolling] = useState(false)
+
+  // Calculate header opacity based on scroll position
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 50, 100],
+    outputRange: [0, 0.5, 1],
+    extrapolate: "clamp",
+  })
+
+  // Calculate header translation based on scroll direction
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, -100],
+    extrapolate: "clamp",
+  })
 
   useEffect(() => {
     // Fetch the latest user data from the server
@@ -18,7 +34,7 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
         const userData = await getProfile()
         setUser(userData)
       } catch (error) {
-        console.error('Error fetching user data:', error)
+        console.error("Error fetching user data:", error)
       } finally {
         setLoading(false)
       }
@@ -33,9 +49,18 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
       await logout()
       onLogout()
     } catch (error) {
-      console.error('Error logging out:', error)
+      console.error("Error logging out:", error)
     }
   }
+
+  // Handle scroll events
+  const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+    useNativeDriver: true,
+    listener: (event) => {
+      const offsetY = event.nativeEvent.contentOffset.y
+      setIsScrolling(offsetY > 0)
+    },
+  })
 
   if (loading && !user) {
     return (
@@ -52,9 +77,26 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
     reviews: 0, // This could be populated from a reviews table if you add one
   }
 
+  // Check if user is a host (propietario)
+  const isHost = user?.tipo === "propietario"
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "right", "left"]}>
-      <ScrollView style={styles.contentContainer}>
+      {/* Animated header */}
+      <Animated.View
+        style={[
+          styles.animatedHeader,
+          {
+            opacity: headerOpacity,
+            transform: [{ translateY: headerTranslateY }],
+            backgroundColor: isScrolling ? "white" : "transparent",
+          },
+        ]}
+      >
+        <Text style={styles.headerText}>Account</Text>
+      </Animated.View>
+
+      <ScrollView style={styles.contentContainer} onScroll={handleScroll} scrollEventThrottle={16}>
         <View style={styles.profileHeader}>
           <View style={styles.profileImageContainer}>
             <Image
@@ -69,6 +111,13 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
           </View>
           <Text style={styles.profileName}>{user?.nombre || "User"}</Text>
           <Text style={styles.profileEmail}>{user?.email || "user@example.com"}</Text>
+
+          {/* Show user type badge */}
+          <View style={styles.userTypeBadge}>
+            <Ionicons name={isHost ? "home" : "person"} size={16} color="white" />
+            <Text style={styles.userTypeBadgeText}>{isHost ? "Host" : "Traveler"}</Text>
+          </View>
+
           <TouchableOpacity style={styles.editProfileButton}>
             <Text style={styles.editProfileButtonText}>Edit Profile</Text>
           </TouchableOpacity>
@@ -77,7 +126,7 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{stats.trips}</Text>
-            <Text style={styles.statLabel}>Trips</Text>
+            <Text style={styles.statLabel}>{isHost ? "Listings" : "Trips"}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
@@ -119,27 +168,64 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
           </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>My Activities</Text>
+        {/* Different sections based on user type */}
+        {isHost ? (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>My Properties</Text>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="bookmark-outline" size={24} color="#333" />
-            <Text style={styles.menuItemText}>Saved Places</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.menuItem, styles.highlightedMenuItem]}
+              onPress={() => {
+                // Ensure we're navigating to the AddPlaceScreen
+                onNavigate("addPlace");
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={24} color="#cf3a23" />
+              <Text style={[styles.menuItemText, styles.highlightedMenuItemText]}>Add New Place</Text>
+              <Ionicons name="chevron-forward" size={20} color="#cf3a23" style={styles.menuItemIcon} />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="time-outline" size={24} color="#333" />
-            <Text style={styles.menuItemText}>Recent Searches</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="list-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Manage My Listings</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="star-outline" size={24} color="#333" />
-            <Text style={styles.menuItemText}>Reviews</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="calendar-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Booking Requests</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="stats-chart-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Performance Analytics</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>My Activities</Text>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="bookmark-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Saved Places</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="time-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Recent Searches</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="star-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Reviews</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log Out</Text>
@@ -177,8 +263,24 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  animatedHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  headerText: {
+    fontSize: 18,
+    fontWeight: "bold",
   },
   contentContainer: {
     flex: 1,
@@ -220,7 +322,21 @@ const styles = StyleSheet.create({
   profileEmail: {
     fontSize: 16,
     color: "#666",
+    marginBottom: 8,
+  },
+  userTypeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#cf3a23",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
     marginBottom: 16,
+  },
+  userTypeBadgeText: {
+    color: "white",
+    fontWeight: "500",
+    marginLeft: 4,
   },
   editProfileButton: {
     paddingHorizontal: 16,
@@ -272,10 +388,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
   },
+  highlightedMenuItem: {
+    backgroundColor: "rgba(207, 58, 35, 0.05)",
+  },
   menuItemText: {
     fontSize: 16,
     marginLeft: 16,
     flex: 1,
+  },
+  highlightedMenuItemText: {
+    color: "#cf3a23",
+    fontWeight: "500",
   },
   menuItemIcon: {
     marginLeft: "auto",
