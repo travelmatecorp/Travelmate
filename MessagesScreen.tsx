@@ -1,301 +1,283 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   StyleSheet,
   View,
   Text,
   FlatList,
-  TouchableOpacity,
   TextInput,
-  Image,
+  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  SafeAreaView,
 } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
+import { Ionicons } from "@expo/vector-icons"
+import BottomNavigation from "./components/BottomNavigation"
 
-// Mock conversation data
-// In a real app, this would come from your backend API
-const mockConversations = [
+// Sample data for conversations
+const SAMPLE_CONVERSATIONS = [
   {
     id: "1",
-    user: {
-      id: "101",
-      name: "Hotel Trenquelauquen",
-      avatar:
-        "https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-      isOnline: true,
-    },
-    lastMessage: {
-      text: "Your reservation has been confirmed for June 15-20.",
-      timestamp: "10:30 AM",
-      unread: true,
-    },
+    name: "Hotel Riviera",
+    lastMessage: "Your reservation has been confirmed.",
+    timestamp: "10:30 AM",
+    unread: 2,
+    avatar: "https://source.unsplash.com/random/?hotel",
+    isOnline: true,
   },
   {
     id: "2",
-    user: {
-      id: "102",
-      name: "Coastal Grill Restaurant",
-      avatar:
-        "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-      isOnline: false,
-    },
-    lastMessage: {
-      text: "We've reserved a table for 4 people at 8 PM tonight.",
-      timestamp: "Yesterday",
-      unread: false,
-    },
+    name: "Beach Tour Guide",
+    lastMessage: "We'll meet at the hotel lobby at 9 AM.",
+    timestamp: "Yesterday",
+    unread: 0,
+    avatar: "https://source.unsplash.com/random/?guide",
+    isOnline: false,
   },
   {
     id: "3",
-    user: {
-      id: "103",
-      name: "Mountain Trek Tours",
-      avatar:
-        "https://images.unsplash.com/photo-1551632811-561732d1e306?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-      isOnline: true,
-    },
-    lastMessage: {
-      text: "Your guide will meet you at the hotel lobby at 9 AM.",
-      timestamp: "Yesterday",
-      unread: false,
-    },
+    name: "Car Rental Service",
+    lastMessage: "Your car will be ready for pickup tomorrow.",
+    timestamp: "Yesterday",
+    unread: 1,
+    avatar: "https://source.unsplash.com/random/?car",
+    isOnline: true,
   },
   {
     id: "4",
-    user: {
-      id: "104",
-      name: "TravelApp Support",
-      avatar:
-        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-      isOnline: true,
-    },
-    lastMessage: {
-      text: "How can we help you with your upcoming trip?",
-      timestamp: "2 days ago",
-      unread: false,
-    },
+    name: "Restaurant Reservation",
+    lastMessage: "We look forward to serving you tonight!",
+    timestamp: "2 days ago",
+    unread: 0,
+    avatar: "https://source.unsplash.com/random/?restaurant",
+    isOnline: false,
   },
 ]
 
-// Mock chat messages for a selected conversation
-// In a real app, this would come from your backend API
-const mockChatMessages = {
-  "1": [
-    {
-      id: "m1",
-      text: "Hello! Thank you for choosing Hotel Trenquelauquen.",
-      sender: "them",
-      timestamp: "10:15 AM",
-    },
-    {
-      id: "m2",
-      text: "Your reservation has been confirmed for June 15-20.",
-      sender: "them",
-      timestamp: "10:30 AM",
-    },
-    {
-      id: "m3",
-      text: "Great! Do you offer airport pickup service?",
-      sender: "me",
-      timestamp: "10:32 AM",
-    },
-  ],
-  "2": [
-    {
-      id: "m1",
-      text: "Hi there! Thanks for your reservation at Coastal Grill.",
-      sender: "them",
-      timestamp: "Yesterday",
-    },
-    {
-      id: "m2",
-      text: "We've reserved a table for 4 people at 8 PM tonight.",
-      sender: "them",
-      timestamp: "Yesterday",
-    },
-  ],
-}
+// Sample data for chat messages
+const SAMPLE_MESSAGES = [
+  {
+    id: "1",
+    text: "Hello! How can I help you with your reservation?",
+    sender: "them",
+    timestamp: "10:30 AM",
+  },
+  {
+    id: "2",
+    text: "Hi! I'd like to confirm my booking for next weekend.",
+    sender: "me",
+    timestamp: "10:31 AM",
+  },
+  {
+    id: "3",
+    text: "Of course! Let me check that for you.",
+    sender: "them",
+    timestamp: "10:32 AM",
+  },
+  {
+    id: "4",
+    text: "I can confirm your reservation for 2 nights starting on Friday, June 10th. Is that correct?",
+    sender: "them",
+    timestamp: "10:33 AM",
+  },
+  {
+    id: "5",
+    text: "Yes, that's correct. Thank you!",
+    sender: "me",
+    timestamp: "10:34 AM",
+  },
+  {
+    id: "6",
+    text: "Perfect! Your reservation is now confirmed. We look forward to welcoming you to Hotel Riviera.",
+    sender: "them",
+    timestamp: "10:35 AM",
+  },
+  {
+    id: "7",
+    text: "Do you have any special requests or questions before your stay?",
+    sender: "them",
+    timestamp: "10:36 AM",
+  },
+  {
+    id: "8",
+    text: "Yes, I was wondering if you offer airport pickup services?",
+    sender: "me",
+    timestamp: "10:37 AM",
+  },
+  {
+    id: "9",
+    text: "Yes, we do! The cost is $30 each way. Would you like me to arrange that for you?",
+    sender: "them",
+    timestamp: "10:38 AM",
+  },
+  {
+    id: "10",
+    text: "That would be great! My flight arrives at 2 PM on Friday.",
+    sender: "me",
+    timestamp: "10:39 AM",
+  },
+]
 
-export default function MessagesScreen({ onNavigate, auth }) {
-  const [selectedConversation, setSelectedConversation] = useState(null)
-  const [message, setMessage] = useState("")
-  const [conversations, setConversations] = useState(mockConversations)
-  const [messages, setMessages] = useState([])
+export default function MessagesScreen({ onNavigate, auth, route }) {
+  const [activeConversation, setActiveConversation] = useState(null)
+  const [conversations, setConversations] = useState(SAMPLE_CONVERSATIONS)
+  const [messages, setMessages] = useState(SAMPLE_MESSAGES)
+  const [newMessage, setNewMessage] = useState("")
+  const flatListRef = useRef(null)
 
-  // Load messages when a conversation is selected
   useEffect(() => {
-    if (selectedConversation) {
-      // In a real app, this would be an API call to fetch messages
-      setMessages(mockChatMessages[selectedConversation.id] || [])
-    }
-  }, [selectedConversation])
-
-  // Send a new message
-  const handleSendMessage = () => {
-    if (!message.trim() || !selectedConversation) return
-
-    // Create a new message object
-    const newMessage = {
-      id: `m${Date.now()}`,
-      text: message,
-      sender: "me",
-      timestamp: "Just now",
-    }
-
-    // In a real app, this would be an API call to send the message
-    // Update local state
-    setMessages([...messages, newMessage])
-
-    // Update the conversation with the new last message
-    const updatedConversations = conversations.map((conv) => {
-      if (conv.id === selectedConversation.id) {
-        return {
-          ...conv,
-          lastMessage: {
-            text: message,
-            timestamp: "Just now",
-            unread: false,
-          },
-        }
+    // If a conversation ID is passed in the route, set it as active
+    if (route?.params?.conversationId) {
+      const conversation = conversations.find((c) => c.id === route.params.conversationId)
+      if (conversation) {
+        setActiveConversation(conversation)
       }
-      return conv
-    })
+    }
+  }, [route?.params?.conversationId, conversations])
 
-    setConversations(updatedConversations)
-    setMessage("")
+  const handleSendMessage = () => {
+    if (newMessage.trim() === "") return
+
+    const newMsg = {
+      id: String(Date.now()),
+      text: newMessage,
+      sender: "me",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    }
+
+    setMessages((prevMessages) => [...prevMessages, newMsg])
+    setNewMessage("")
+
+    // Scroll to the bottom
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true })
+    }, 100)
   }
 
-  // Render a conversation item
+  const handleBackToConversations = () => {
+    setActiveConversation(null)
+  }
+
   const renderConversationItem = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.conversationItem, selectedConversation?.id === item.id && styles.selectedConversation]}
-      onPress={() => setSelectedConversation(item)}
-    >
+    <TouchableOpacity style={styles.conversationItem} onPress={() => setActiveConversation(item)}>
       <View style={styles.avatarContainer}>
-        <Image source={{ uri: item.user.avatar }} style={styles.avatar} />
-        {item.user.isOnline && <View style={styles.onlineIndicator} />}
+        <Image source={{ uri: item.avatar }} style={styles.avatar} />
+        {item.isOnline && <View style={styles.onlineIndicator} />}
       </View>
-      <View style={styles.conversationInfo}>
-        <Text style={styles.userName}>{item.user.name}</Text>
-        <Text style={[styles.lastMessage, item.lastMessage.unread && styles.unreadMessage]} numberOfLines={1}>
-          {item.lastMessage.text}
-        </Text>
-      </View>
-      <View style={styles.conversationMeta}>
-        <Text style={styles.timestamp}>{item.lastMessage.timestamp}</Text>
-        {item.lastMessage.unread && <View style={styles.unreadIndicator} />}
+      <View style={styles.conversationDetails}>
+        <View style={styles.conversationHeader}>
+          <Text style={styles.conversationName}>{item.name}</Text>
+          <Text style={styles.conversationTime}>{item.timestamp}</Text>
+        </View>
+        <View style={styles.conversationFooter}>
+          <Text style={styles.conversationLastMessage} numberOfLines={1}>
+            {item.lastMessage}
+          </Text>
+          {item.unread > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>{item.unread}</Text>
+            </View>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   )
 
-  // Render a chat message
-  const renderChatMessage = ({ item }) => (
-    <View style={[styles.messageContainer, item.sender === "me" ? styles.myMessage : styles.theirMessage]}>
-      <View style={[styles.messageBubble, item.sender === "me" ? styles.myMessageBubble : styles.theirMessageBubble]}>
-        <Text style={styles.messageText}>{item.text}</Text>
+  const renderMessageItem = ({ item }) => (
+    <View
+      style={[
+        styles.messageContainer,
+        item.sender === "me" ? styles.sentMessageContainer : styles.receivedMessageContainer,
+      ]}
+    >
+      {item.sender !== "me" && activeConversation && (
+        <Text style={styles.messageSender}>{activeConversation.name}</Text>
+      )}
+      <View
+        style={[styles.messageBubble, item.sender === "me" ? styles.sentMessageBubble : styles.receivedMessageBubble]}
+      >
+        <Text style={[styles.messageText, item.sender === "me" ? styles.sentMessageText : styles.receivedMessageText]}>
+          {item.text}
+        </Text>
       </View>
       <Text style={styles.messageTimestamp}>{item.timestamp}</Text>
     </View>
   )
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "right", "left"]}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Messages</Text>
-        <TouchableOpacity style={styles.newMessageButton}>
-          <Ionicons name="create-outline" size={24} color="#cf3a23" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.content}>
-        {/* Conversations list */}
-        <View style={styles.conversationsContainer}>
-          <FlatList
-            data={conversations}
-            renderItem={renderConversationItem}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-          />
+    <SafeAreaView style={styles.container} edges={["top"]}>
+    {activeConversation ? (
+      // Chat view
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardAvoidingView}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBackToConversations} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="black" />
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>{activeConversation.name}</Text>
+            <Text style={styles.headerSubtitle}>{activeConversation.isOnline ? "Online" : "Offline"}</Text>
+          </View>
+          <TouchableOpacity style={styles.headerAction}>
+            <Ionicons name="call-outline" size={22} color="black" />
+          </TouchableOpacity>
         </View>
 
-        {/* Chat area */}
-        {selectedConversation ? (
-          <View style={styles.chatContainer}>
-            <View style={styles.chatHeader}>
-              <TouchableOpacity style={styles.backButton} onPress={() => setSelectedConversation(null)}>
-                <Ionicons name="arrow-back" size={24} color="black" />
-              </TouchableOpacity>
-              <Image source={{ uri: selectedConversation.user.avatar }} style={styles.chatAvatar} />
-              <View style={styles.chatHeaderInfo}>
-                <Text style={styles.chatHeaderName}>{selectedConversation.user.name}</Text>
-                <Text style={styles.chatHeaderStatus}>{selectedConversation.user.isOnline ? "Online" : "Offline"}</Text>
-              </View>
-              <TouchableOpacity style={styles.chatHeaderAction}>
-                <Ionicons name="call-outline" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessageItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.messagesList}
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+        />
 
-            <FlatList
-              data={messages}
-              renderItem={renderChatMessage}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.messagesContainer}
-              inverted={false}
-            />
+        <View style={styles.inputContainer}>
+          <TouchableOpacity style={styles.attachButton}>
+            <Ionicons name="attach" size={24} color="#666" />
+          </TouchableOpacity>
+          <TextInput
+            style={styles.input}
+            placeholder="Type a message..."
+            value={newMessage}
+            onChangeText={setNewMessage}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.sendButton, newMessage.trim() === "" && styles.sendButtonDisabled]}
+            onPress={handleSendMessage}
+            disabled={newMessage.trim() === ""}
+          >
+            <Ionicons name="send" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    ) : (
+      // Conversations list view
+      <>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Messages</Text>
+          <TouchableOpacity style={styles.headerAction}>
+            <Ionicons name="create-outline" size={24} color="black" />
+          </TouchableOpacity>
+        </View>
 
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              keyboardVerticalOffset={100}
-              style={styles.inputContainer}
-            >
-              <TouchableOpacity style={styles.attachButton}>
-                <Ionicons name="attach" size={24} color="#666" />
-              </TouchableOpacity>
-              <TextInput
-                style={styles.input}
-                placeholder="Type a message..."
-                value={message}
-                onChangeText={setMessage}
-                multiline
-              />
-              <TouchableOpacity
-                style={[styles.sendButton, !message.trim() && styles.disabledSendButton]}
-                onPress={handleSendMessage}
-                disabled={!message.trim()}
-              >
-                <Ionicons name="send" size={20} color={message.trim() ? "white" : "#999"} />
-              </TouchableOpacity>
-            </KeyboardAvoidingView>
-          </View>
-        ) : (
-          <View style={styles.noChatSelectedContainer}>
-            <Ionicons name="chatbubble-ellipses-outline" size={80} color="#ddd" />
-            <Text style={styles.noChatSelectedText}>Select a conversation to start chatting</Text>
-          </View>
-        )}
-      </View>
+        <FlatList
+          data={conversations}
+          renderItem={renderConversationItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.conversationsList}
+        />
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("calendar")}>
-          <Ionicons name="calendar-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("rewards")}>
-          <MaterialCommunityIcons name="bookmark-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("map")}>
-          <Ionicons name="location-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.activeNavItem]}>
-          <Feather name="message-square" size={24} color="#cf3a23" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate(auth?.isLoggedIn ? "account" : "login")}>
-          <Ionicons name="person-outline" size={24} color="black" />
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+        <BottomNavigation currentScreen="messages" onNavigate={onNavigate} auth={auth} />
+      </>
+    )}
+  </SafeAreaView>
   )
 }
 
@@ -304,48 +286,53 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  // Header Styles
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
     backgroundColor: "white",
   },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  headerInfo: {
+    flex: 1,
+  },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
   },
-  newMessageButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
+  headerSubtitle: {
+    fontSize: 12,
+    color: "#666",
   },
-  content: {
-    flex: 1,
-    flexDirection: "row",
+  headerAction: {
+    padding: 8,
   },
-  conversationsContainer: {
-    width: "35%",
-    borderRightWidth: 1,
-    borderRightColor: "#e0e0e0",
-    backgroundColor: "white",
+
+  // Conversations List Styles
+  conversationsList: {
+    paddingVertical: 8,
   },
   conversationItem: {
     flexDirection: "row",
-    padding: 12,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  selectedConversation: {
-    backgroundColor: "#f9f9f9",
+    borderBottomColor: "#e0e0e0",
+    backgroundColor: "white",
   },
   avatarContainer: {
     position: "relative",
-    marginRight: 12,
+    marginRight: 16,
   },
   avatar: {
     width: 50,
@@ -356,118 +343,101 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0,
     right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: "#4CAF50",
     borderWidth: 2,
     borderColor: "white",
   },
-  conversationInfo: {
+  conversationDetails: {
     flex: 1,
     justifyContent: "center",
   },
-  userName: {
-    fontWeight: "600",
-    fontSize: 14,
+  conversationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 4,
   },
-  lastMessage: {
+  conversationName: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  conversationTime: {
     fontSize: 12,
     color: "#666",
   },
-  unreadMessage: {
-    fontWeight: "bold",
-    color: "#333",
-  },
-  conversationMeta: {
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
-  timestamp: {
-    fontSize: 11,
-    color: "#999",
-    marginBottom: 4,
-  },
-  unreadIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#cf3a23",
-  },
-  chatContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  chatHeader: {
+  conversationFooter: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-    backgroundColor: "white",
   },
-  backButton: {
+  conversationLastMessage: {
+    fontSize: 14,
+    color: "#666",
+    flex: 1,
     marginRight: 8,
   },
-  chatAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  chatHeaderInfo: {
-    flex: 1,
-  },
-  chatHeaderName: {
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  chatHeaderStatus: {
-    fontSize: 12,
-    color: "#666",
-  },
-  chatHeaderAction: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
+  unreadBadge: {
+    backgroundColor: "#cf3a23",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 24,
     alignItems: "center",
   },
-  messagesContainer: {
+  unreadBadgeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+
+  // Chat View Styles
+  messagesList: {
     padding: 16,
+    paddingBottom: 24,
   },
   messageContainer: {
     marginBottom: 16,
     maxWidth: "80%",
   },
-  myMessage: {
+  sentMessageContainer: {
     alignSelf: "flex-end",
   },
-  theirMessage: {
+  receivedMessageContainer: {
     alignSelf: "flex-start",
   },
+  messageSender: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
+    marginLeft: 4,
+  },
   messageBubble: {
-    padding: 12,
-    borderRadius: 16,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  myMessageBubble: {
+  sentMessageBubble: {
     backgroundColor: "#cf3a23",
-    borderBottomRightRadius: 4,
+    borderTopRightRadius: 4,
   },
-  theirMessageBubble: {
-    backgroundColor: "#f0f0f0",
-    borderBottomLeftRadius: 4,
+  receivedMessageBubble: {
+    backgroundColor: "#e0e0e0",
+    borderTopLeftRadius: 4,
   },
   messageText: {
-    fontSize: 14,
-    color: "#333",
+    fontSize: 16,
   },
-  myMessageText: {
+  sentMessageText: {
     color: "white",
   },
+  receivedMessageText: {
+    color: "#333",
+  },
   messageTimestamp: {
-    fontSize: 10,
-    color: "#999",
+    fontSize: 11,
+    color: "#666",
     marginTop: 4,
     alignSelf: "flex-end",
   },
@@ -475,9 +445,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 8,
+    backgroundColor: "white",
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
-    backgroundColor: "white",
   },
   attachButton: {
     padding: 8,
@@ -489,46 +459,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     maxHeight: 100,
+    marginHorizontal: 8,
   },
   sendButton: {
+    backgroundColor: "#cf3a23",
+    borderRadius: 20,
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "#cf3a23",
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 8,
   },
-  disabledSendButton: {
-    backgroundColor: "#f0f0f0",
-  },
-  noChatSelectedContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
-  noChatSelectedText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#999",
-  },
-  bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    backgroundColor: "white",
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 48,
-    height: 48,
-  },
-  activeNavItem: {
-    borderRadius: 24,
+  sendButtonDisabled: {
+    backgroundColor: "#e0e0e0",
   },
 })
-

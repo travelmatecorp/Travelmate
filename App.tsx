@@ -4,15 +4,22 @@ import { useState, useEffect } from "react"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { View, ActivityIndicator } from "react-native"
+import HomeScreen from "./HomeScreen"
 import MainScreen from "./MainScreen"
 import AccountScreen from "./AccountScreen"
 import LoginScreen from "./LoginScreen"
 import RegisterScreen from "./RegisterScreen"
 import MessagesScreen from "./MessagesScreen"
-import RewardsScreen from "./RewardsScreen"
 import CalendarScreen from "./CalendarScreen"
 import MapScreen from "./MapScreen"
+import AddPlaceScreen from "./AddPlaceScreen"
 import { getData } from "./storage"
+import { VacationProvider } from "./context/VacationContext"
+
+// Add the new PlaceDetailScreen and VacationTimelineScreen to the App.tsx file
+// Import the new screens
+import PlaceDetailScreen from "./PlaceDetailScreen"
+import VacationTimelineScreen from "./VacationTimelineScreen"
 
 // Initialize auth with default values
 const initialAuthState = {
@@ -27,7 +34,8 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   // Navigation state
-  const [currentScreen, setCurrentScreen] = useState("main")
+  const [currentScreen, setCurrentScreen] = useState("home")
+  const [routeParams, setRouteParams] = useState({})
 
   // Check for stored authentication on app start
   useEffect(() => {
@@ -60,19 +68,32 @@ export default function App() {
       user: userData,
       token: token,
     })
-    setCurrentScreen("main")
+    setCurrentScreen("home")
   }
 
   const handleLogout = () => {
     setAuth(initialAuthState)
-    setCurrentScreen("main")
+    setCurrentScreen("home")
   }
 
   const handleRegister = (userData) => {
     setCurrentScreen("login")
   }
 
-  const handleNavigate = (screen) => {
+  const handleNavigate = (screen, params = {}) => {
+    // Check if the screen requires authentication
+    if ((screen === "addPlace" || screen === "account") && !auth.isLoggedIn) {
+      // If not logged in and trying to access protected screens, redirect to login
+      setCurrentScreen("login")
+      return
+    }
+
+    // Set route params if provided
+    if (Object.keys(params).length > 0) {
+      setRouteParams(params)
+    }
+
+    // Otherwise, navigate normally
     setCurrentScreen(screen)
   }
 
@@ -88,6 +109,8 @@ export default function App() {
   // Screen renderer
   const renderScreen = () => {
     switch (currentScreen) {
+      case "home":
+        return <HomeScreen onNavigate={handleNavigate} auth={auth} />
       case "main":
         return <MainScreen onNavigate={handleNavigate} auth={auth} />
       case "account":
@@ -98,21 +121,27 @@ export default function App() {
         return <RegisterScreen onRegister={handleRegister} onNavigate={handleNavigate} />
       case "messages":
         return <MessagesScreen onNavigate={handleNavigate} auth={auth} />
-      case "rewards":
-        return <RewardsScreen onNavigate={handleNavigate} auth={auth} />
       case "calendar":
-        return <CalendarScreen onNavigate={handleNavigate} auth={auth} />
+        return <CalendarScreen onNavigate={handleNavigate} auth={auth} route={routeParams} />
       case "map":
-        return <MapScreen onNavigate={handleNavigate} auth={auth} />
+        return <MapScreen onNavigate={handleNavigate} auth={auth} route={routeParams} />
+      case "addPlace":
+        return <AddPlaceScreen onNavigate={handleNavigate} auth={auth} />
+      case "placeDetail":
+        return <PlaceDetailScreen onNavigate={handleNavigate} auth={auth} route={routeParams} />
+      case "vacationTimeline":
+        return <VacationTimelineScreen onNavigate={handleNavigate} auth={auth} route={routeParams} />
       default:
-        return <MainScreen onNavigate={handleNavigate} auth={auth} />
+        return <HomeScreen onNavigate={handleNavigate} auth={auth} />
     }
   }
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
-      {renderScreen()}
+      <VacationProvider>
+        <StatusBar style="dark" />
+        {renderScreen()}
+      </VacationProvider>
     </SafeAreaProvider>
   )
 }

@@ -1,279 +1,244 @@
 "use client"
 
-import { useState } from "react"
-import { StyleSheet, View, Text, ScrollView, Image, TextInput, TouchableOpacity, Dimensions } from "react-native"
+import { useState, useEffect } from "react"
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  FlatList,
+  Dimensions,
+  Alert,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Ionicons, MaterialIcons, FontAwesome5, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
+import { Ionicons } from "@expo/vector-icons"
+import { useVacation } from "./context/VacationContext"
+import { getPlacesByDestination, formatDate } from "./api"
+import placeholder from "./assets/placeholder"
+import BottomNavigation from "./components/BottomNavigation"
 
-// Get screen width for responsive sizing
 const { width } = Dimensions.get("window")
 const cardWidth = width * 0.7
 
-// Mock data for the listings
-const hotelData = [
-  {
-    id: "1",
-    name: "Hotel Volador",
-    image:
-      "https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    price: "$120/night",
-    rating: 4.8,
-  },
-  {
-    id: "2",
-    name: "Hotel Morenis",
-    image:
-      "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    price: "$95/night",
-    rating: 4.5,
-  },
-  {
-    id: "3",
-    name: "Grand Simio Hotel",
-    image:
-      "https://images.unsplash.com/photo-1564501049412-61c2a3083791?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    price: "$150/night",
-    rating: 4.9,
-  },
-  {
-    id: "4",
-    name: "Pescado Resort",
-    image:
-      "https://images.unsplash.com/photo-1571896349842-33c89424de2d?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    price: "$200/night",
-    rating: 4.7,
-  },
-  {
-    id: "5",
-    name: "Mountain Dumbo Views",
-    image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    price: "$180/night",
-    rating: 4.6,
-  },
-]
+const MainScreen = ({ onNavigate, auth }) => {
+  const { vacationPlan, selectedDestination } = useVacation()
+  const [isLoading, setIsLoading] = useState(true)
+  const [hotels, setHotels] = useState([])
+  const [restaurants, setRestaurants] = useState([])
+  const [activities, setActivities] = useState([])
+  const [activeTab, setActiveTab] = useState("all")
 
-const restaurantData = [
-  {
-    id: "1",
-    name: "Esquina Due",
-    image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    cuisine: "Italian",
-    rating: 4.6,
-  },
-  {
-    id: "2",
-    name: "Pizza anuel brr",
-    image:
-      "https://images.unsplash.com/photo-1513104890138-7c749659a591?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    cuisine: "Pizza",
-    rating: 4.3,
-  },
-  {
-    id: "3",
-    name: "Coastal Grill",
-    image:
-      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    cuisine: "Seafood",
-    rating: 4.7,
-  },
-  {
-    id: "4",
-    name: "Sushi Express",
-    image:
-      "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    cuisine: "Japanese",
-    rating: 4.5,
-  },
-  {
-    id: "5",
-    name: "Taco Fiesta",
-    image:
-      "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    cuisine: "Mexican",
-    rating: 4.4,
-  },
-]
+  useEffect(() => {
+    if (vacationPlan || selectedDestination) {
+      const destination = vacationPlan?.destino || selectedDestination
+      if (destination) {
+        fetchPlaces(destination.id)
+      }
+    }
+  }, [vacationPlan, selectedDestination])
 
-const excursionData = [
-  {
-    id: "1",
-    name: "Cataratas",
-    image:
-      "https://images.unsplash.com/photo-1534407315408-56a7c9c3ccac?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    duration: "6 hours",
-    rating: 4.9,
-  },
-  {
-    id: "2",
-    name: "Río Azul",
-    image:
-      "https://images.unsplash.com/photo-1503220317375-aaad61436b1b?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    duration: "4 hours",
-    rating: 4.7,
-  },
-  {
-    id: "3",
-    name: "Mountain Trek",
-    image: "https://images.unsplash.com/photo-1551632811-561732d1e306?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    duration: "8 hours",
-    rating: 4.8,
-  },
-  {
-    id: "4",
-    name: "Desert Safari",
-    image: "https://images.unsplash.com/photo-1547234935-80c7145ec969?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    duration: "5 hours",
-    rating: 4.6,
-  },
-  {
-    id: "5",
-    name: "Jungle Adventure",
-    image:
-      "https://images.unsplash.com/photo-1604537466158-719b1972feb8?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60",
-    duration: "7 hours",
-    rating: 4.5,
-  },
-]
+  const fetchPlaces = async (destinationId) => {
+    try {
+      setIsLoading(true)
 
-// Category data
-const categories = [
-  { id: "1", name: "Fijado", icon: "star-outline", type: "ionicon" },
-  { id: "2", name: "Hoteles", icon: "bookmark-outline", type: "ionicon", active: true },
-  { id: "3", name: "Casas", icon: "star", type: "ionicon", filled: true },
-  { id: "4", name: "Depts", icon: "home", type: "ionicon" },
-  { id: "5", name: "Vehic", icon: "apps", type: "ionicon" },
-  { id: "6", name: "Excur", icon: "walk", type: "ionicon" },
-  { id: "7", name: "Resto", icon: "cafe", type: "ionicon" },
-]
+      // Fetch hotels
+      try {
+        const hotelsData = await getPlacesByDestination(destinationId, "hotel")
+        console.log("Hotels data:", hotelsData)
+        setHotels(hotelsData || [])
+      } catch (error) {
+        console.error("Error fetching hotels:", error)
+        setHotels([])
+      }
 
-export default function MainScreen({ onNavigate, auth }) {
-  const [activeCategory, setActiveCategory] = useState("Hoteles")
+      // Fetch restaurants
+      try {
+        const restaurantsData = await getPlacesByDestination(destinationId, "restaurant")
+        console.log("Restaurants data:", restaurantsData)
+        setRestaurants(restaurantsData || [])
+      } catch (error) {
+        console.error("Error fetching restaurants:", error)
+        setRestaurants([])
+      }
 
-  const renderCategoryIcon = (item) => {
-    switch (item.type) {
-      case "ionicon":
-        return (
-          <Ionicons
-            name={item.icon}
-            size={24}
-            color={item.active ? "#cf3a23" : "black"}
-            style={item.filled ? styles.filledIcon : {}}
-          />
-        )
-      case "material":
-        return <MaterialIcons name={item.icon} size={24} color={item.active ? "#cf3a23" : "black"} />
-      case "font-awesome-5":
-        return <FontAwesome5 name={item.icon} size={24} color={item.active ? "#cf3a23" : "black"} />
-      default:
-        return <Ionicons name={item.icon} size={24} color={item.active ? "#cf3a23" : "black"} />
+      // Fetch activities
+      try {
+        const activitiesData = await getPlacesByDestination(destinationId, "excursion")
+        console.log("Activities data:", activitiesData)
+        setActivities(activitiesData || [])
+      } catch (error) {
+        console.error("Error fetching activities:", error)
+        setActivities([])
+      }
+    } catch (error) {
+      console.error("Error in fetchPlaces:", error)
+      Alert.alert("Error", "Failed to load places. Please try again later.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const renderListingItem = (item, index, dataLength) => (
-    <TouchableOpacity
-      key={item.id}
-      style={[styles.horizontalListingItem, index === dataLength - 1 && { marginRight: 16 }]}
+  // IMPORTANT: Fixed the navigation to PlaceDetailScreen
+  const handlePlacePress = (item) => {
+    console.log("Navigating to place detail with item:", item)
+    // Pass the ID in multiple formats to ensure compatibility
+    onNavigate("placeDetail", { 
+      id: item.id, 
+      placeId: item.id,
+      lugar_id: item.id,
+      place: item // Also pass the entire place object as a fallback
+    })
+  }
+
+  const renderListingItem = ({ item, type }) => (
+    <TouchableOpacity 
+      style={styles.listingCard} 
+      onPress={() => handlePlacePress(item)}
     >
-      <Image source={{ uri: item.image }} style={styles.horizontalListingImage} />
+      <Image
+        source={{
+          uri:
+            item.image || item.imagen_url || `https://source.unsplash.com/random/?${item.name || item.nombre},${type}`,
+        }}
+        defaultSource={placeholder}
+        style={styles.listingImage}
+      />
       <View style={styles.listingDetails}>
-        <Text style={styles.listingName}>{item.name}</Text>
-        {item.price && <Text style={styles.listingPrice}>{item.price}</Text>}
+        <Text style={styles.listingName}>{item.name || item.nombre}</Text>
+        {(item.price || item.precio) && <Text style={styles.listingPrice}>{item.price || `$${item.precio}`}</Text>}
         {item.cuisine && <Text style={styles.listingInfo}>{item.cuisine}</Text>}
         {item.duration && <Text style={styles.listingInfo}>{item.duration}</Text>}
         <View style={styles.ratingContainer}>
           <Ionicons name="star" size={14} color="#FFD700" />
-          <Text style={styles.ratingText}>{item.rating}</Text>
+          <Text style={styles.ratingText}>{item.rating || "4.5"}</Text>
         </View>
       </View>
     </TouchableOpacity>
   )
 
+  const destination = vacationPlan?.destino || selectedDestination
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "right", "left"]}>
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="filter" size={24} color="black" style={styles.filterIcon} />
-          <TextInput style={styles.searchInput} placeholder="" placeholderTextColor="#999" />
-          <Ionicons name="search" size={24} color="#747775" style={styles.searchIcon} />
-        </View>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Vacation Summary</Text>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoriesContainer}
-        contentContainerStyle={styles.categoriesContent}
-      >
-        {categories.map((category, index) => (
+      {destination && (
+        <View style={styles.destinationBanner}>
+          <Image
+            source={{
+              uri: destination.imagen_url || `https://source.unsplash.com/random/?${destination.nombre},city`,
+            }}
+            style={styles.destinationImage}
+          />
+          <View style={styles.destinationOverlay}>
+            <Text style={styles.destinationName}>{destination.nombre}</Text>
+            <Text style={styles.destinationCountry}>{destination.pais}</Text>
+
+            {vacationPlan && (
+              <View style={styles.dateContainer}>
+                <Ionicons name="calendar" size={16} color="white" />
+                <Text style={styles.dateText}>
+                  {formatDate(vacationPlan.fechaInicio)} - {formatDate(vacationPlan.fechaFin)}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
           <TouchableOpacity
-            key={category.id}
-            style={styles.categoryItem}
-            onPress={() => setActiveCategory(category.name)}
+            style={[styles.tab, activeTab === "all" && styles.activeTab]}
+            onPress={() => setActiveTab("all")}
           >
-            {renderCategoryIcon(category)}
-            <Text style={[styles.categoryName, category.name === activeCategory && styles.activeCategoryName]}>
-              {category.name}
-            </Text>
-            {category.name === activeCategory && <View style={styles.activeIndicator} />}
+            <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>All</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <ScrollView style={styles.contentContainer}>
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Hoteles</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalScrollContent}
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "hotels" && styles.activeTab]}
+            onPress={() => setActiveTab("hotels")}
           >
-            {hotelData.map((item, index) => renderListingItem(item, index, hotelData.length))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Restaurant</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalScrollContent}
+            <Text style={[styles.tabText, activeTab === "hotels" && styles.activeTabText]}>Hotels</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "restaurants" && styles.activeTab]}
+            onPress={() => setActiveTab("restaurants")}
           >
-            {restaurantData.map((item, index) => renderListingItem(item, index, restaurantData.length))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Excursiones</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalScrollContent}
+            <Text style={[styles.tabText, activeTab === "restaurants" && styles.activeTabText]}>Restaurants</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "activities" && styles.activeTab]}
+            onPress={() => setActiveTab("activities")}
           >
-            {excursionData.map((item, index) => renderListingItem(item, index, excursionData.length))}
-          </ScrollView>
-        </View>
-
-        {/* Add extra padding at the bottom to ensure all content is visible above the bottom nav */}
-        <View style={{ height: 80 }} />
-      </ScrollView>
-
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("calendar")}>
-          <Ionicons name="calendar-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("rewards")}>
-          <MaterialCommunityIcons name="bookmark-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("map")}>
-          <Ionicons name="location-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("messages")}>
-          <Feather name="message-square" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate(auth?.isLoggedIn ? "account" : "login")}>
-          <Ionicons name="person-outline" size={24} color="black" />
-        </TouchableOpacity>
+            <Text style={[styles.tabText, activeTab === "activities" && styles.activeTabText]}>Activities</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
+
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#cf3a23" />
+        </View>
+      ) : (
+        <ScrollView style={styles.content}>
+          {(activeTab === "all" || activeTab === "hotels") && hotels.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Hotels</Text>
+              <FlatList
+                data={hotels}
+                renderItem={({ item }) => renderListingItem({ item, type: "hotel" })}
+                keyExtractor={(item) => `hotel-${item.id}`}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.listingContainer}
+              />
+            </View>
+          )}
+
+          {(activeTab === "all" || activeTab === "restaurants") && restaurants.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Restaurants</Text>
+              <FlatList
+                data={restaurants}
+                renderItem={({ item }) => renderListingItem({ item, type: "restaurant" })}
+                keyExtractor={(item) => `restaurant-${item.id}`}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.listingContainer}
+              />
+            </View>
+          )}
+
+          {(activeTab === "all" || activeTab === "activities") && activities.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Activities</Text>
+              <FlatList
+                data={activities}
+                renderItem={({ item }) => renderListingItem({ item, type: "activity" })}
+                keyExtractor={(item) => `activity-${item.id}`}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.listingContainer}
+              />
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.mapButton} onPress={() => onNavigate("map")}>
+            <Ionicons name="map" size={20} color="white" />
+            <Text style={styles.mapButtonText}>View on Map</Text>
+          </TouchableOpacity>
+
+          {/* Add extra padding at the bottom */}
+          <View style={{ height: 80 }} />
+        </ScrollView>
+      )}
+
+      <BottomNavigation currentScreen="home" onNavigate={onNavigate} auth={auth} />
     </SafeAreaView>
   )
 }
@@ -283,86 +248,108 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
-  searchContainer: {
+  header: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+    backgroundColor: "white",
   },
-  searchBar: {
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  destinationBanner: {
+    height: 200,
+    width: "100%",
+    position: "relative",
+  },
+  destinationImage: {
+    width: "100%",
+    height: "100%",
+  },
+  destinationOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  destinationName: {
+    color: "white",
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+  destinationCountry: {
+    color: "white",
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  dateContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
-    borderRadius: 30,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  filterIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 4,
-  },
-  searchIcon: {
+  dateText: {
+    color: "white",
     marginLeft: 8,
   },
-  categoriesContainer: {
-    maxHeight: 80,
+  tabsContainer: {
+    backgroundColor: "white",
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
   },
-  categoriesContent: {
+  tabs: {
+    paddingHorizontal: 16,
+  },
+  tab: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+    marginRight: 8,
+    borderRadius: 20,
+    backgroundColor: "#f0f0f0",
   },
-  categoryItem: {
-    alignItems: "center",
-    position: "relative",
-    marginRight: 24,
-  },
-  categoryName: {
-    marginTop: 4,
-    fontSize: 12,
-  },
-  activeCategoryName: {
-    color: "#cf3a23",
-  },
-  filledIcon: {
-    color: "black",
-  },
-  activeIndicator: {
-    position: "absolute",
-    bottom: -9,
-    left: 0,
-    right: 0,
-    height: 3,
+  activeTab: {
     backgroundColor: "#cf3a23",
   },
-  contentContainer: {
+  tabText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  activeTabText: {
+    color: "white",
+    fontWeight: "500",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  content: {
     flex: 1,
   },
-  sectionContainer: {
+  section: {
     marginTop: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     marginLeft: 16,
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  horizontalScrollContent: {
+  listingContainer: {
     paddingLeft: 16,
+    paddingRight: 8,
   },
-  horizontalListingItem: {
+  listingCard: {
     width: cardWidth,
-    marginRight: 12,
-    borderRadius: 8,
     backgroundColor: "white",
+    borderRadius: 12,
+    marginRight: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -370,18 +357,16 @@ const styles = StyleSheet.create({
     elevation: 2,
     overflow: "hidden",
   },
-  horizontalListingImage: {
+  listingImage: {
     width: "100%",
     height: 150,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
   },
   listingDetails: {
     padding: 12,
   },
   listingName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "bold",
     marginBottom: 4,
   },
   listingPrice: {
@@ -405,26 +390,22 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 4,
   },
-  bottomNav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+  mapButton: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    backgroundColor: "white",
-  },
-  navItem: {
     alignItems: "center",
     justifyContent: "center",
-    width: 48,
-    height: 48,
+    backgroundColor: "#cf3a23",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginTop: 24,
   },
-  activeNavItem: {
-    borderRadius: 24,
+  mapButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    marginLeft: 8,
   },
 })
 
+export default MainScreen

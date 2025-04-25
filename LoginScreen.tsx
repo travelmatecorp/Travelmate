@@ -10,11 +10,12 @@ import {
   Platform,
   KeyboardAvoidingView,
   ScrollView,
+  ActivityIndicator,
   Alert,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
-import { login } from "./api" // Changed from "../api" to "./api"
+import { login } from "./api"
 
 export default function LoginScreen({ onLogin, onNavigate }) {
   // Form state
@@ -22,28 +23,38 @@ export default function LoginScreen({ onLogin, onNavigate }) {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
 
   // Handle login submission
   const handleLoginSubmit = async () => {
     // Basic validation
     if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields")
+      setError("Please fill in all fields")
       return
     }
 
     try {
       setIsLoading(true)
+      setError("")
 
       // Call the login API
       const { user, token } = await login({
         email,
-        password
+        password,
       })
 
       // Call the login handler from App.js
       onLogin(user, token)
     } catch (error) {
-      Alert.alert("Login Failed", error.error || "Please try again later")
+      console.error("Login error:", error)
+      setError(error.error || "Login failed. Please try again.")
+      
+      // Show more detailed error for debugging
+      Alert.alert(
+        "Login Error",
+        "There was an error connecting to the server. Please check your network connection and make sure the server is running.",
+        [{ text: "OK" }]
+      )
     } finally {
       setIsLoading(false)
     }
@@ -70,6 +81,8 @@ export default function LoginScreen({ onLogin, onNavigate }) {
           </View>
 
           <View style={styles.formContainer}>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
             {/* Email Field */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Email</Text>
@@ -79,7 +92,10 @@ export default function LoginScreen({ onLogin, onNavigate }) {
                   style={styles.input}
                   placeholder="Your email"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(text) => {
+                    setEmail(text)
+                    setError("")
+                  }}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   editable={!isLoading}
@@ -96,7 +112,10 @@ export default function LoginScreen({ onLogin, onNavigate }) {
                   style={styles.input}
                   placeholder="Your password"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text)
+                    setError("")
+                  }}
                   secureTextEntry={!showPassword}
                   editable={!isLoading}
                 />
@@ -117,7 +136,11 @@ export default function LoginScreen({ onLogin, onNavigate }) {
               onPress={handleLoginSubmit}
               disabled={isLoading}
             >
-              <Text style={styles.loginButtonText}>{isLoading ? "Signing In..." : "Sign In"}</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.loginButtonText}>Sign In</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.orContainer}>
@@ -199,6 +222,11 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     marginBottom: 24,
+  },
+  errorText: {
+    color: "#cf3a23",
+    marginBottom: 16,
+    textAlign: "center",
   },
   inputContainer: {
     marginBottom: 16,

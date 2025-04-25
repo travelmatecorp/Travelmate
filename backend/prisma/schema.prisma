@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["tracing"]
 }
 
@@ -48,6 +48,59 @@ model usuarios {
   creado_en     DateTime?     @default(now()) @db.Timestamp(0)
 }
 
+model actividades_vacaciones {
+  id          Int       @id @default(autoincrement())
+  plan_id     Int
+  lugar_id    Int
+  fecha       DateTime  @db.Date
+  hora_inicio DateTime? @db.Time(0)
+  hora_fin    DateTime? @db.Time(0)
+  notas       String?   @db.Text
+  creado_en   DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([fecha], map: "idx_actividades_fecha")
+  @@index([lugar_id], map: "lugar_id")
+  @@index([plan_id], map: "plan_id")
+}
+
+model destinos {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @db.VarChar(100)
+  pais        String    @db.VarChar(100)
+  descripcion String?   @db.Text
+  imagen_url  String?   @db.VarChar(255)
+  latitud     Decimal   @db.Decimal(10, 8)
+  longitud    Decimal   @db.Decimal(11, 8)
+  popularidad Int?      @default(0)
+  destacado   Boolean?  @default(false)
+  creado_en   DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([popularidad], map: "idx_destinos_popularidad")
+}
+
+model planes_vacaciones {
+  id           Int                       @id @default(autoincrement())
+  usuario_id   Int
+  destino_id   Int
+  fecha_inicio DateTime                  @db.Date
+  fecha_fin    DateTime                  @db.Date
+  estado       planes_vacaciones_estado? @default(planificado)
+  creado_en    DateTime?                 @default(now()) @db.Timestamp(0)
+
+  @@index([destino_id], map: "destino_id")
+  @@index([fecha_inicio, fecha_fin], map: "idx_planes_fechas")
+  @@index([usuario_id], map: "idx_planes_usuario")
+}
+
+model disponibilidad {
+  id         Int      @id @default(autoincrement())
+  lugar_id   Int
+  fecha      DateTime @db.Date
+  disponible Boolean? @default(true)
+
+  @@unique([lugar_id, fecha], map: "lugar_id")
+}
+
 enum lugares_tipo {
   restaurante
   alojamiento
@@ -67,3 +120,8 @@ enum reservas_estado {
   cancelada
 }
 
+enum planes_vacaciones_estado {
+  planificado
+  confirmado
+  cancelado
+}

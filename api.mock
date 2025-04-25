@@ -1,0 +1,218 @@
+import { storeData, getData } from "./storage"
+
+// Mock user data
+const mockUsers = [
+  {
+    id: 1,
+    nombre: "Test User",
+    email: "test@example.com",
+    tipo: "normal",
+    creado_en: new Date().toISOString(),
+  },
+]
+
+// Mock places data
+const mockLugares = [
+  {
+    id: 1,
+    nombre: "Hotel Trenquelauquen",
+    descripcion: "A beautiful hotel with ocean view",
+    ubicacion: "40.7128,-74.006",
+    tipo: "alojamiento",
+    creado_en: new Date().toISOString(),
+  },
+]
+
+// Mock reservations data
+const mockReservations = []
+
+// User registration
+export async function register(userData) {
+  try {
+    console.log("Mock registering user with data:", userData)
+
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(userData.email)) {
+      throw { error: "Please enter a valid email address" }
+    }
+
+    // Validate password length
+    if (userData.password.length < 6) {
+      throw { error: "Password must be at least 6 characters long" }
+    }
+
+    // Check if email already exists
+    const existingUser = mockUsers.find((user) => user.email === userData.email)
+    if (existingUser) {
+      throw { error: "Email already in use" }
+    }
+
+    // Create new user
+    const newUser = {
+      id: mockUsers.length + 1,
+      nombre: userData.nombre,
+      email: userData.email,
+      tipo: userData.tipo || "normal",
+      creado_en: new Date().toISOString(),
+    }
+
+    // Add to mock database
+    mockUsers.push(newUser)
+
+    console.log("Mock registration successful:", newUser)
+    return newUser
+  } catch (error) {
+    console.error("Mock registration error:", error)
+    throw error
+  }
+}
+
+// User login
+export async function login(email, password) {
+  try {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // Find user by email
+    const user = mockUsers.find((user) => user.email === email)
+
+    // In a real app, you would check the password hash
+    // For mock purposes, we'll just check if the user exists
+    if (!user) {
+      throw { error: "Invalid email or password" }
+    }
+
+    // Generate mock token
+    const token = "mock-jwt-token-" + Math.random().toString(36).substring(2)
+
+    // Store auth data
+    await storeData("token", token)
+    await storeData("user", user)
+
+    return { user, token }
+  } catch (error) {
+    console.error("Mock login error:", error)
+    throw error
+  }
+}
+
+// Get user profile
+export async function getProfile() {
+  try {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // Get stored user data
+    const user = await getData("user")
+
+    if (!user) {
+      throw { error: "Not authenticated" }
+    }
+
+    return user
+  } catch (error) {
+    console.error("Mock get profile error:", error)
+    throw error
+  }
+}
+
+// Logout user
+export async function logout() {
+  try {
+    // Clear stored auth data
+    await storeData("token", null)
+    await storeData("user", null)
+
+    return true
+  } catch (error) {
+    console.error("Mock logout error:", error)
+    throw error
+  }
+}
+
+// Create a new place (for hosts)
+export async function createLugar(lugarData) {
+  try {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // Create new place
+    const newLugar = {
+      id: mockLugares.length + 1,
+      ...lugarData,
+      creado_en: new Date().toISOString(),
+    }
+
+    // Add to mock database
+    mockLugares.push(newLugar)
+
+    return newLugar
+  } catch (error) {
+    console.error("Mock create lugar error:", error)
+    throw error
+  }
+}
+
+// Get all places
+export async function getLugares() {
+  try {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    return mockLugares
+  } catch (error) {
+    console.error("Mock get lugares error:", error)
+    throw error
+  }
+}
+
+// Create a reservation
+export async function createReservation(reservationData) {
+  try {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // Create new reservation
+    const newReservation = {
+      id: mockReservations.length + 1,
+      ...reservationData,
+      estado: "pendiente",
+      creado_en: new Date().toISOString(),
+    }
+
+    // Add to mock database
+    mockReservations.push(newReservation)
+
+    return newReservation
+  } catch (error) {
+    console.error("Mock create reservation error:", error)
+    throw error
+  }
+}
+
+// Get user reservations
+export async function getUserReservations() {
+  try {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // Get stored user data
+    const user = await getData("user")
+
+    if (!user) {
+      throw { error: "Not authenticated" }
+    }
+
+    // Filter reservations by user ID
+    const userReservations = mockReservations.filter((reservation) => reservation.usuario_id === user.id)
+
+    return userReservations
+  } catch (error) {
+    console.error("Mock get user reservations error:", error)
+    throw error
+  }
+}

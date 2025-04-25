@@ -58,7 +58,7 @@ const rewardsData = [
 
 // Mock user rewards data
 const userRewardsData = {
-  totalPoints: 2500,
+  totalPoints: 0,
   level: "Gold",
   nextLevel: "Platinum",
   pointsToNextLevel: 1500,
@@ -77,8 +77,8 @@ const userRewardsData = {
     },
     {
       id: "a3",
-      description: "Redeemed - 10% Off Hotel Booking",
-      points: "-500",
+      description: "Visit the simio´s house",
+      points: "+500",
       date: "Sep 28, 2023",
     },
   ],

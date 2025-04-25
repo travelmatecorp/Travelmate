@@ -1,380 +1,592 @@
 "use client"
 
-import { useState } from "react"
-import { StyleSheet, View, Text, TouchableOpacity, FlatList } from "react-native"
+import { useState, useEffect } from "react"
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Animated,
+  ActivityIndicator,
+  Alert,
+  Modal,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
+import { Ionicons } from "@expo/vector-icons"
+import Calendar from "./components/Calendar"
+import BottomNavigation from "./components/BottomNavigation"
+import { useVacation } from "./context/VacationContext"
+import { getVacationPlans, createVacationPlan, confirmVacationPlan } from "./api"
 
-// Mock calendar data
-const currentDate = new Date()
-const currentMonth = currentDate.getMonth()
-const currentYear = currentDate.getFullYear()
+const CalendarScreen = ({ onNavigate, auth }) => {
+  const {
+    selectedDestination,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    isCreatingVacation,
+    setIsCreatingVacation,
+    setVacationPlan,
+    vacationPlan,
+    reservations,
+  } = useVacation()
 
-// Mock trips data
-const tripsData = [
-  {
-    id: "1",
-    title: "Beach Vacation",
-    location: "Cancun, Mexico",
-    startDate: new Date(currentYear, currentMonth, 15),
-    endDate: new Date(currentYear, currentMonth, 22),
-    status: "upcoming",
-    color: "#4285F4",
-  },
-  {
-    id: "2",
-    title: "Business Trip",
-    location: "New York, USA",
-    startDate: new Date(currentYear, currentMonth, 5),
-    endDate: new Date(currentYear, currentMonth, 8),
-    status: "completed",
-    color: "#34A853",
-  },
-  {
-    id: "3",
-    title: "Mountain Retreat",
-    location: "Aspen, Colorado",
-    startDate: new Date(currentYear, currentMonth + 1, 10),
-    endDate: new Date(currentYear, currentMonth + 1, 15),
-    status: "upcoming",
-    color: "#FBBC05",
-  },
-]
+  const [isLoading, setIsLoading] = useState(false)
+  const [vacationPlans, setVacationPlans] = useState([])
+  const [showCalendarModal, setShowCalendarModal] = useState(false)
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false)
+  const [currentStep, setCurrentStep] = useState(1) // 1: start date, 2: end date, 3: confirm
+  const [dateSelectionMode, setDateSelectionMode] = useState("start") // 'start' or 'end'
+  const [rangeHighlightAnim] = useState(new Animated.Value(0))
+  const [selectedPlanId, setSelectedPlanId] = useState(null)
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false)
+  const [planToConfirm, setPlanToConfirm] = useState(null)
 
-// Mock events data
-const eventsData = [
-  {
-    id: "e1",
-    title: "Hotel Check-in",
-    location: "Hotel Trenquelauquen",
-    date: new Date(currentYear, currentMonth, 15, 14, 0),
-    type: "hotel",
-    color: "#4285F4",
-    tripId: "1",
-  },
-  {
-    id: "e2",
-    title: "Dinner Reservation",
-    location: "Coastal Grill Restaurant",
-    date: new Date(currentYear, currentMonth, 15, 19, 30),
-    type: "restaurant",
-    color: "#EA4335",
-    tripId: "1",
-  },
-  {
-    id: "e3",
-    title: "Snorkeling Tour",
-    location: "Coral Reef",
-    date: new Date(currentYear, currentMonth, 16, 10, 0),
-    type: "excursion",
-    color: "#34A853",
-    tripId: "1",
-  },
-  {
-    id: "e4",
-    title: "Business Meeting",
-    location: "Corporate Office",
-    date: new Date(currentYear, currentMonth, 6, 9, 0),
-    type: "meeting",
-    color: "#4285F4",
-    tripId: "2",
-  },
-  {
-    id: "e5",
-    title: "Ski Lesson",
-    location: "Snowmass Mountain",
-    date: new Date(currentYear, currentMonth + 1, 11, 10, 0),
-    type: "excursion",
-    color: "#34A853",
-    tripId: "3",
-  },
-]
-
-// Helper functions
-const getDaysInMonth = (month, year) => {
-  return new Date(year, month + 1, 0).getDate()
-}
-
-const getFirstDayOfMonth = (month, year) => {
-  return new Date(year, month, 1).getDay()
-}
-
-const formatDate = (date) => {
-  const options = { weekday: "short", month: "short", day: "numeric" }
-  return date.toLocaleDateString("en-US", options)
-}
-
-const formatTime = (date) => {
-  return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-}
-
-export default function CalendarScreen({ onNavigate, auth }) {
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
-  const [selectedYear, setSelectedYear] = useState(currentYear)
-  const [selectedDate, setSelectedDate] = useState(currentDate)
-  const [view, setView] = useState("month") // "month" or "agenda"
-
-  // Generate calendar days
-  const generateCalendarDays = () => {
-    const daysInMonth = getDaysInMonth(selectedMonth, selectedYear)
-    const firstDay = getFirstDayOfMonth(selectedMonth, selectedYear)
-
-    const days = []
-
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < firstDay; i++) {
-      days.push({ day: "", empty: true })
+  // Fetch vacation plans on component mount
+  useEffect(() => {
+    if (auth?.isLoggedIn) {
+      fetchVacationPlans()
     }
+  }, [auth?.isLoggedIn])
 
-    // Add days of the month
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(selectedYear, selectedMonth, i)
-
-      // Check if there are events on this day
-      const hasEvents = eventsData.some(
-        (event) =>
-          event.date.getDate() === i &&
-          event.date.getMonth() === selectedMonth &&
-          event.date.getFullYear() === selectedYear,
-      )
-
-      // Check if this day is part of a trip
-      const isInTrip = tripsData.some((trip) => {
-        const tripStartDate = trip.startDate
-        const tripEndDate = trip.endDate
-        return date >= tripStartDate && date <= tripEndDate
-      })
-
-      days.push({
-        day: i,
-        date,
-        hasEvents,
-        isInTrip,
-        isToday:
-          i === currentDate.getDate() &&
-          selectedMonth === currentDate.getMonth() &&
-          selectedYear === currentDate.getFullYear(),
-        isSelected:
-          i === selectedDate.getDate() &&
-          selectedMonth === selectedDate.getMonth() &&
-          selectedYear === selectedDate.getFullYear(),
-      })
+  // Reset state when destination changes
+  useEffect(() => {
+    if (selectedDestination) {
+      setIsCreatingVacation(true)
+      setStartDate(null)
+      setEndDate(null)
+      setCurrentStep(1)
+      setDateSelectionMode("start")
+      setShowCalendarModal(true)
     }
+  }, [selectedDestination])
 
-    return days
-  }
-
-  // Get events for selected date
-  const getEventsForSelectedDate = () => {
-    return eventsData
-      .filter(
-        (event) =>
-          event.date.getDate() === selectedDate.getDate() &&
-          event.date.getMonth() === selectedDate.getMonth() &&
-          event.date.getFullYear() === selectedDate.getFullYear(),
-      )
-      .sort((a, b) => a.date - b.date)
-  }
-
-  // Navigate to previous month
-  const goToPreviousMonth = () => {
-    if (selectedMonth === 0) {
-      setSelectedMonth(11)
-      setSelectedYear(selectedYear - 1)
+  // Animate range highlight when dates are selected
+  useEffect(() => {
+    if (startDate && endDate) {
+      Animated.timing(rangeHighlightAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start()
     } else {
-      setSelectedMonth(selectedMonth - 1)
+      rangeHighlightAnim.setValue(0)
+    }
+  }, [startDate, endDate])
+
+  // Fix for onScroll error - ensure we pass a function, not an object
+  const handleScroll = (event) => {
+    // You can add scroll handling logic here if needed
+  }
+
+  const fetchVacationPlans = async () => {
+    try {
+      setIsLoading(true)
+      const plans = await getVacationPlans(auth?.user?.id)
+      setVacationPlans(plans)
+    } catch (error) {
+      console.error("Error fetching vacation plans:", error)
+      Alert.alert("Error", "Failed to fetch vacation plans. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  // Navigate to next month
-  const goToNextMonth = () => {
-    if (selectedMonth === 11) {
-      setSelectedMonth(0)
-      setSelectedYear(selectedYear + 1)
-    } else {
-      setSelectedMonth(selectedMonth + 1)
+  const handleCreateVacation = () => {
+    if (!auth?.isLoggedIn) {
+      Alert.alert("Login Required", "Please log in to create a vacation plan.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Login", onPress: () => onNavigate("login") },
+      ])
+      return
     }
+
+    setShowCalendarModal(true)
+    setDateSelectionMode("start")
+    setCurrentStep(1)
+    setStartDate(null)
+    setEndDate(null)
   }
 
-  // Select a date
   const handleDateSelect = (date) => {
-    setSelectedDate(date)
-    setView("agenda")
+    if (dateSelectionMode === "start") {
+      setStartDate(date)
+      setDateSelectionMode("end")
+      setCurrentStep(2)
+    } else {
+      // Ensure end date is not before start date
+      if (startDate && date < startDate) {
+        Alert.alert("Invalid Date", "End date cannot be before start date.")
+        return
+      }
+
+      setEndDate(date)
+      setCurrentStep(3)
+
+      // Animate the date range on the calendar
+      Animated.timing(rangeHighlightAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start()
+
+      // After a short delay, proceed to confirmation
+      setTimeout(() => {
+        setShowCalendarModal(false)
+        setShowConfirmationModal(true)
+      }, 800)
+    }
   }
 
-  // Render calendar day
-  const renderCalendarDay = ({ item, index }) => {
-    if (item.empty) {
-      return <View style={styles.emptyDay} />
+  const handleCreateNewVacation = async () => {
+    if (!selectedDestination || !startDate || !endDate) {
+      Alert.alert("Missing Information", "Please select destination and dates.")
+      return
     }
+
+    if (!auth?.user?.id) {
+      Alert.alert("Login Required", "Please log in to create a vacation plan.")
+      return
+    }
+
+    try {
+      setIsLoading(true)
+
+      const vacationData = {
+        destino_id: selectedDestination.id,
+        usuario_id: auth.user.id,
+        fecha_inicio: startDate.toISOString().split("T")[0],
+        fecha_fin: endDate.toISOString().split("T")[0],
+      }
+
+      const newVacation = await createVacationPlan(vacationData)
+
+      // Update local state
+      setVacationPlan({
+        id: newVacation.id,
+        destino: selectedDestination,
+        fechaInicio: startDate,
+        fechaFin: endDate,
+        reservations: [],
+        estado: "planificado",
+      })
+
+      setShowConfirmationModal(false)
+
+      // Show success message and navigate to main screen
+      Alert.alert("Success", "Vacation plan created successfully!", [{ text: "OK", onPress: () => onNavigate("main") }])
+
+      // Refresh vacation plans
+      fetchVacationPlans()
+    } catch (error) {
+      console.error("Error creating vacation plan:", error)
+      Alert.alert("Error", "Failed to create vacation plan. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleConfirmExistingVacation = async (planId) => {
+    try {
+      setIsLoading(true)
+      await confirmVacationPlan(planId)
+
+      // Update local state
+      const updatedPlans = vacationPlans.map((plan) => (plan.id === planId ? { ...plan, estado: "confirmado" } : plan))
+      setVacationPlans(updatedPlans)
+
+      // If this is the currently selected vacation plan, update it
+      if (vacationPlan && vacationPlan.id === planId) {
+        setVacationPlan({
+          ...vacationPlan,
+          estado: "confirmado",
+        })
+      }
+
+      Alert.alert("Success", "Vacation plan confirmed!")
+    } catch (error) {
+      console.error("Error confirming vacation plan:", error)
+      Alert.alert("Error", "Failed to confirm vacation plan. Please try again.")
+    } finally {
+      setIsLoading(false)
+      setSelectedPlanId(null)
+    }
+  }
+
+  const renderCalendarModal = () => {
+    return (
+      <Modal
+        visible={showCalendarModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCalendarModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {dateSelectionMode === "start" ? "Select Start Date" : "Select End Date"}
+              </Text>
+              <TouchableOpacity onPress={() => setShowCalendarModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <Calendar
+              onDateSelect={handleDateSelect}
+              selectedStartDate={startDate}
+              selectedEndDate={endDate}
+              minDate={new Date()}
+            />
+
+            <View style={styles.dateSelectionInfo}>
+              {startDate && (
+                <View style={styles.dateInfo}>
+                  <Text style={styles.dateLabel}>Start Date:</Text>
+                  <Text style={styles.dateValue}>{startDate.toLocaleDateString()}</Text>
+                </View>
+              )}
+
+              {endDate && (
+                <View style={styles.dateInfo}>
+                  <Text style={styles.dateLabel}>End Date:</Text>
+                  <Text style={styles.dateValue}>{endDate.toLocaleDateString()}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    )
+  }
+
+  const renderConfirmationModal = () => {
+    return (
+      <Modal
+        visible={showConfirmationModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowConfirmationModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Confirm Vacation</Text>
+              <TouchableOpacity onPress={() => setShowConfirmationModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.confirmationCard}>
+              <View style={styles.confirmationItem}>
+                <Text style={styles.confirmationLabel}>Destination:</Text>
+                <Text style={styles.confirmationValue}>
+                  {selectedDestination?.nombre}, {selectedDestination?.pais}
+                </Text>
+              </View>
+              <View style={styles.confirmationItem}>
+                <Text style={styles.confirmationLabel}>Start Date:</Text>
+                <Text style={styles.confirmationValue}>{startDate?.toLocaleDateString()}</Text>
+              </View>
+              <View style={styles.confirmationItem}>
+                <Text style={styles.confirmationLabel}>End Date:</Text>
+                <Text style={styles.confirmationValue}>{endDate?.toLocaleDateString()}</Text>
+              </View>
+              <View style={styles.confirmationItem}>
+                <Text style={styles.confirmationLabel}>Duration:</Text>
+                <Text style={styles.confirmationValue}>
+                  {Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))} days
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.confirmationButtons}>
+              <TouchableOpacity
+                style={[styles.confirmButton, styles.cancelButton]}
+                onPress={() => setShowConfirmationModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>No, Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.confirmButton} onPress={handleCreateNewVacation} disabled={isLoading}>
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Yes, Confirm</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    )
+  }
+
+  const renderPlanConfirmationModal = () => {
+    const plan = vacationPlans.find((p) => p.id === selectedPlanId)
+
+    if (!plan) return null
+
+    return (
+      <Modal
+        visible={!!selectedPlanId}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setSelectedPlanId(null)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Confirm Vacation Plan</Text>
+              <TouchableOpacity onPress={() => setSelectedPlanId(null)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.confirmationText}>
+              Are you sure you want to confirm your vacation to {plan.destino?.nombre}?
+            </Text>
+
+            <View style={styles.confirmationCard}>
+              <View style={styles.confirmationItem}>
+                <Text style={styles.confirmationLabel}>Destination:</Text>
+                <Text style={styles.confirmationValue}>
+                  {plan.destino?.nombre}, {plan.destino?.pais}
+                </Text>
+              </View>
+              <View style={styles.confirmationItem}>
+                <Text style={styles.confirmationLabel}>Start Date:</Text>
+                <Text style={styles.confirmationValue}>{new Date(plan.fecha_inicio).toLocaleDateString()}</Text>
+              </View>
+              <View style={styles.confirmationItem}>
+                <Text style={styles.confirmationLabel}>End Date:</Text>
+                <Text style={styles.confirmationValue}>{new Date(plan.fecha_fin).toLocaleDateString()}</Text>
+              </View>
+            </View>
+
+            <View style={styles.confirmationButtons}>
+              <TouchableOpacity
+                style={[styles.confirmButton, styles.cancelButton]}
+                onPress={() => setSelectedPlanId(null)}
+              >
+                <Text style={styles.cancelButtonText}>No, Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => handleConfirmExistingVacation(plan.id)}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Yes, Confirm</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    )
+  }
+
+  const handleVacationConfirmation = async () => {
+    if (!planToConfirm) return
+
+    try {
+      setIsLoading(true)
+      await confirmVacationPlan(planToConfirm.id)
+
+      // Update local state
+      const updatedPlans = vacationPlans.map((plan) =>
+        plan.id === planToConfirm.id ? { ...plan, estado: "confirmado" } : plan,
+      )
+      setVacationPlans(updatedPlans)
+
+      // Close modal
+      setConfirmModalVisible(false)
+      setPlanToConfirm(null)
+
+      // Show success message
+      Alert.alert("Success", "Vacation plan confirmed successfully!")
+    } catch (error) {
+      console.error("Error confirming vacation plan:", error)
+      Alert.alert("Error", "Failed to confirm vacation plan. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const renderVacationItem = (plan) => {
+    const isPlanConfirmed = plan.estado === "confirmado"
 
     return (
       <TouchableOpacity
-        style={[styles.calendarDay, item.isToday && styles.today, item.isSelected && styles.selectedDay]}
-        onPress={() => handleDateSelect(item.date)}
+        key={plan.id}
+        style={styles.vacationPlanItem}
+        onPress={() => {
+          // Navigate to vacation details
+          setVacationPlan({
+            id: plan.id,
+            destino: plan.destino,
+            fechaInicio: new Date(plan.fecha_inicio),
+            fechaFin: new Date(plan.fecha_fin),
+            estado: plan.estado,
+          })
+          onNavigate("main")
+        }}
       >
-        <Text
-          style={[styles.calendarDayText, item.isToday && styles.todayText, item.isSelected && styles.selectedDayText]}
-        >
-          {item.day}
-        </Text>
-        {item.hasEvents && <View style={styles.eventDot} />}
-        {item.isInTrip && <View style={styles.tripIndicator} />}
+        <View style={styles.vacationPlanInfo}>
+          <Text style={styles.vacationPlanDestination}>{plan.destino?.nombre || "Unknown Destination"}</Text>
+          <Text style={styles.vacationPlanDates}>
+            {new Date(plan.fecha_inicio).toLocaleDateString()} - {new Date(plan.fecha_fin).toLocaleDateString()}
+          </Text>
+          <View style={styles.statusContainer}>
+            <View style={[styles.statusIndicator, { backgroundColor: isPlanConfirmed ? "#4CAF50" : "#FFC107" }]} />
+            <Text style={styles.statusText}>{isPlanConfirmed ? "Confirmed" : "Planned"}</Text>
+          </View>
+        </View>
+
+        <View style={styles.vacationPlanActions}>
+          {plan.estado === "planificado" && (
+            <TouchableOpacity
+              style={styles.confirmPlanButton}
+              onPress={() => {
+                setPlanToConfirm(plan)
+                setConfirmModalVisible(true)
+              }}
+            >
+              <Text style={styles.confirmPlanButtonText}>Confirm</Text>
+            </TouchableOpacity>
+          )}
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </View>
       </TouchableOpacity>
     )
   }
 
-  // Render event item
-  const renderEventItem = ({ item }) => (
-    <TouchableOpacity style={styles.eventItem}>
-      <View style={[styles.eventColorIndicator, { backgroundColor: item.color }]} />
-      <View style={styles.eventInfo}>
-        <Text style={styles.eventTime}>{formatTime(item.date)}</Text>
-        <Text style={styles.eventTitle}>{item.title}</Text>
-        <Text style={styles.eventLocation}>{item.location}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color="#999" />
-    </TouchableOpacity>
-  )
-
-  // Render trip item
-  const renderTripItem = ({ item }) => {
-    const isActive =
-      (selectedDate >= item.startDate && selectedDate <= item.endDate) ||
-      (currentDate >= item.startDate && currentDate <= item.endDate)
-
+  const renderReservationItem = (reservation) => {
     return (
-      <TouchableOpacity style={[styles.tripItem, isActive && styles.activeTripItem]}>
-        <View style={[styles.tripColorIndicator, { backgroundColor: item.color }]} />
-        <View style={styles.tripInfo}>
-          <Text style={styles.tripTitle}>{item.title}</Text>
-          <Text style={styles.tripLocation}>{item.location}</Text>
-          <Text style={styles.tripDates}>
-            {formatDate(item.startDate)} - {formatDate(item.endDate)}
+      <TouchableOpacity
+        key={reservation.id}
+        style={styles.reservationItem}
+        onPress={() => {
+          // Navigate to reservation details
+        }}
+      >
+        <View style={styles.reservationInfo}>
+          <Text style={styles.reservationPlace}>{reservation.place.name}</Text>
+          <Text style={styles.reservationDates}>
+            {reservation.startDate.toLocaleDateString()} - {reservation.endDate.toLocaleDateString()}
           </Text>
+          <View style={styles.reservationStatus}>
+            <View
+              style={[
+                styles.statusIndicator,
+                { backgroundColor: reservation.status === "confirmed" ? "#4CAF50" : "#FFC107" },
+              ]}
+            />
+            <Text style={styles.statusText}>
+              {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+            </Text>
+          </View>
         </View>
-        <View style={styles.tripStatus}>
-          <Text
-            style={[
-              styles.tripStatusText,
-              item.status === "completed" ? styles.completedStatus : styles.upcomingStatus,
-            ]}
-          >
-            {item.status === "completed" ? "Completed" : "Upcoming"}
-          </Text>
-        </View>
+        <Ionicons name="chevron-forward" size={20} color="#999" />
       </TouchableOpacity>
     )
   }
-
-  const calendarDays = generateCalendarDays()
-  const eventsForSelectedDate = getEventsForSelectedDate()
-  const monthName = new Date(selectedYear, selectedMonth).toLocaleString("default", { month: "long" })
-  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "right", "left"]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendar</Text>
-        <View style={styles.viewToggle}>
-          <TouchableOpacity
-            style={[styles.viewToggleButton, view === "month" && styles.activeViewToggleButton]}
-            onPress={() => setView("month")}
-          >
-            <Ionicons name="calendar" size={20} color={view === "month" ? "#cf3a23" : "#666"} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.viewToggleButton, view === "agenda" && styles.activeViewToggleButton]}
-            onPress={() => setView("agenda")}
-          >
-            <Ionicons name="list" size={20} color={view === "agenda" ? "#cf3a23" : "#666"} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.monthSelector}>
-        <TouchableOpacity onPress={goToPreviousMonth}>
-          <Ionicons name="chevron-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.monthYearText}>
-          {monthName} {selectedYear}
-        </Text>
-        <TouchableOpacity onPress={goToNextMonth}>
-          <Ionicons name="chevron-forward" size={24} color="#333" />
+        <TouchableOpacity onPress={() => onNavigate("rewards")} style={styles.rewardsButton}>
+          <Ionicons name="gift-outline" size={24} color="#cf3a23" />
         </TouchableOpacity>
       </View>
 
-      {view === "month" ? (
-        <View style={styles.calendarContainer}>
-          <View style={styles.weekdaysRow}>
-            {weekdays.map((day, index) => (
-              <Text key={index} style={styles.weekdayText}>
-                {day}
-              </Text>
-            ))}
-          </View>
-
-          <FlatList
-            data={calendarDays}
-            renderItem={renderCalendarDay}
-            keyExtractor={(item, index) => index.toString()}
-            numColumns={7}
-            scrollEnabled={false}
-          />
-
-          <View style={styles.tripsSection}>
-            <Text style={styles.sectionTitle}>Your Trips</Text>
-            <FlatList
-              data={tripsData}
-              renderItem={renderTripItem}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
-        </View>
-      ) : (
-        <View style={styles.agendaContainer}>
-          <View style={styles.selectedDateHeader}>
-            <Text style={styles.selectedDateText}>{formatDate(selectedDate)}</Text>
-          </View>
-
-          {eventsForSelectedDate.length > 0 ? (
-            <FlatList
-              data={eventsForSelectedDate}
-              renderItem={renderEventItem}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.eventsList}
-            />
-          ) : (
-            <View style={styles.noEventsContainer}>
-              <Ionicons name="calendar-outline" size={80} color="#ddd" />
-              <Text style={styles.noEventsText}>No events scheduled for this day</Text>
-              <TouchableOpacity style={styles.addEventButton}>
-                <Text style={styles.addEventButtonText}>Add Event</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+      {selectedDestination && (
+        <View style={styles.destinationBanner}>
+          <Ionicons name="location" size={20} color="#cf3a23" />
+          <Text style={styles.destinationText}>You are planning in: {selectedDestination.nombre}</Text>
         </View>
       )}
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={[styles.navItem, styles.activeNavItem]}>
-          <Ionicons name="calendar" size={24} color="#cf3a23" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("rewards")}>
-          <MaterialCommunityIcons name="bookmark-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("map")}>
-          <Ionicons name="location-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("messages")}>
-          <Feather name="message-square" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate(auth?.isLoggedIn ? "account" : "login")}>
-          <Ionicons name="person-outline" size={24} color="black" />
-        </TouchableOpacity>
-      </View>
+      <ScrollView
+        style={styles.content}
+        onScroll={(event) => {
+          // Handle scroll event properly
+          const offsetY = event.nativeEvent.contentOffset.y
+          // Your scroll handling logic here
+        }}
+        scrollEventThrottle={16}
+      >
+        <View style={styles.calendarContainer}>
+          <Calendar selectedStartDate={startDate} selectedEndDate={endDate} />
+        </View>
+
+        <View style={styles.vacationsSection}>
+          <Text style={styles.sectionTitle}>Your Vacations</Text>
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#cf3a23" />
+          ) : vacationPlans.length > 0 ? (
+            vacationPlans.map(renderVacationItem)
+          ) : (
+            <Text style={styles.noVacationsText}>No vacations planned yet</Text>
+          )}
+        </View>
+
+        {reservations.length > 0 && (
+          <View style={styles.reservationsSection}>
+            <Text style={styles.sectionTitle}>Your Reservations</Text>
+            {reservations.map(renderReservationItem)}
+          </View>
+        )}
+
+        {/* Add extra padding at the bottom */}
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      <TouchableOpacity style={styles.createVacationButton} onPress={handleCreateVacation}>
+        <Text style={styles.createVacationButtonText}>Create Vacation</Text>
+      </TouchableOpacity>
+
+      {renderCalendarModal()}
+      {renderConfirmationModal()}
+      {renderPlanConfirmationModal()}
+
+      {/* Confirmation Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={confirmModalVisible}
+        onRequestClose={() => setConfirmModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Confirm Vacation</Text>
+            <Text style={styles.modalText}>Are you sure you want to confirm this vacation plan?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setConfirmModalVisible(false)
+                  setPlanToConfirm(null)
+                }}
+              >
+                <Text style={styles.cancelButtonText}>No, cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, styles.confirmButton]} onPress={handleVacationConfirmation}>
+                <Text style={styles.confirmButtonText}>Yes, confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <BottomNavigation currentScreen="calendar" onNavigate={onNavigate} auth={auth} />
     </SafeAreaView>
   )
 }
@@ -398,250 +610,289 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
-  viewToggle: {
+  rewardsButton: {
+    padding: 8,
+  },
+  destinationBanner: {
     flexDirection: "row",
-    backgroundColor: "#f0f0f0",
-    borderRadius: 20,
-    padding: 4,
-  },
-  viewToggleButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  activeViewToggleButton: {
-    backgroundColor: "white",
-  },
-  monthSelector: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    backgroundColor: "rgba(207, 58, 35, 0.1)",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 8,
   },
-  monthYearText: {
-    fontSize: 18,
-    fontWeight: "bold",
+  destinationText: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#cf3a23",
+  },
+  content: {
+    flex: 1,
   },
   calendarContainer: {
-    flex: 1,
-    backgroundColor: "white",
+    margin: 16,
   },
-  weekdaysRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  weekdayText: {
-    width: 40,
-    textAlign: "center",
-    fontSize: 14,
-    color: "#666",
-  },
-  calendarDay: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    margin: 2,
-  },
-  emptyDay: {
-    width: 40,
-    height: 40,
-    margin: 2,
-  },
-  calendarDayText: {
-    fontSize: 14,
-  },
-  today: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 20,
-  },
-  todayText: {
-    fontWeight: "bold",
-  },
-  selectedDay: {
-    backgroundColor: "#cf3a23",
-    borderRadius: 20,
-  },
-  selectedDayText: {
-    color: "white",
-    fontWeight: "bold",
-  },
-  eventDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#cf3a23",
-    position: "absolute",
-    bottom: 6,
-  },
-  tripIndicator: {
-    width: 20,
-    height: 3,
-    backgroundColor: "#4285F4",
-    position: "absolute",
-    bottom: 2,
-    borderRadius: 1.5,
-  },
-  tripsSection: {
-    flex: 1,
+  vacationsSection: {
     padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    backgroundColor: "white",
+    borderRadius: 16,
+    margin: 16,
+    marginTop: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  reservationsSection: {
+    padding: 16,
+    backgroundColor: "white",
+    borderRadius: 16,
+    margin: 16,
+    marginTop: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  tripItem: {
-    flexDirection: "row",
-    backgroundColor: "white",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  activeTripItem: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#4285F4",
-  },
-  tripColorIndicator: {
-    width: 4,
-    height: "100%",
-    borderRadius: 2,
-    marginRight: 12,
-  },
-  tripInfo: {
-    flex: 1,
-  },
-  tripTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  tripLocation: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
-  },
-  tripDates: {
-    fontSize: 12,
-    color: "#999",
-  },
-  tripStatus: {
-    justifyContent: "center",
-  },
-  tripStatusText: {
-    fontSize: 12,
-    fontWeight: "500",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  completedStatus: {
-    backgroundColor: "#E8F5E9",
-    color: "#4CAF50",
-  },
-  upcomingStatus: {
-    backgroundColor: "#E3F2FD",
-    color: "#2196F3",
-  },
-  agendaContainer: {
-    flex: 1,
-    backgroundColor: "white",
-  },
-  selectedDateHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  selectedDateText: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  eventsList: {
-    padding: 16,
-  },
-  eventItem: {
+  vacationPlanItem: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
-  eventColorIndicator: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-    marginRight: 12,
-  },
-  eventInfo: {
+  vacationPlanInfo: {
     flex: 1,
   },
-  eventTime: {
+  vacationPlanDestination: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  vacationPlanDates: {
     fontSize: 14,
     color: "#666",
     marginBottom: 4,
   },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginBottom: 2,
+  statusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  eventLocation: {
-    fontSize: 14,
+  statusIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
     color: "#666",
   },
-  noEventsContainer: {
+  vacationPlanActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  confirmPlanButton: {
+    backgroundColor: "#cf3a23",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  confirmPlanButtonText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  reservationItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  reservationInfo: {
+    flex: 1,
+  },
+  reservationPlace: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  reservationDates: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
+  },
+  reservationStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  noVacationsText: {
+    textAlign: "center",
+    color: "#999",
+    paddingVertical: 20,
+  },
+  createVacationButton: {
+    backgroundColor: "#cf3a23",
+    borderRadius: 8,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    alignItems: "center",
+  },
+  createVacationButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  modalContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 16,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    padding: 20,
   },
-  noEventsText: {
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  confirmationText: {
     fontSize: 16,
-    color: "#999",
-    marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 16,
+    textAlign: "center",
   },
-  addEventButton: {
-    backgroundColor: "#cf3a23",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+  dateSelectionInfo: {
+    marginTop: 20,
+    backgroundColor: "#f9f9f9",
     borderRadius: 8,
+    padding: 12,
   },
-  addEventButtonText: {
-    color: "white",
+  dateInfo: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
+  dateLabel: {
+    width: 80,
+    fontSize: 14,
+    color: "#666",
+  },
+  dateValue: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  confirmationCard: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 16,
+  },
+  confirmationItem: {
+    flexDirection: "row",
+    marginBottom: 12,
+  },
+  confirmationLabel: {
+    width: 100,
+    fontSize: 16,
+    color: "#666",
+  },
+  confirmationValue: {
+    flex: 1,
     fontSize: 16,
     fontWeight: "500",
   },
-  bottomNav: {
+  confirmationButtons: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    backgroundColor: "white",
+    justifyContent: "space-between",
   },
-  navItem: {
+  confirmButton: {
+    flex: 1,
+    backgroundColor: "#4CAF50",
+    borderRadius: 8,
+    paddingVertical: 14,
     alignItems: "center",
-    justifyContent: "center",
-    width: 48,
-    height: 48,
+    marginHorizontal: 4,
   },
-  activeNavItem: {
-    borderRadius: 24,
+  cancelButton: {
+    backgroundColor: "#f44336",
+  },
+  confirmButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  cancelButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 10,
+    padding: 20,
+    width: "80%",
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    minWidth: "45%",
+    alignItems: "center",
+  },
+  cancelButton: {
+    backgroundColor: "#f0f0f0",
+  },
+  cancelButtonText: {
+    color: "#333",
+    fontWeight: "500",
   },
 })
 
+export default CalendarScreen

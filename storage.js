@@ -1,9 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Wrapper functions for AsyncStorage
 export const storeData = async (key, value) => {
   try {
+    if (value == null) {  // Verifica si el valor es null o undefined
+      console.error("Cannot store null or undefined values.");
+      return false;
+    }
+
+    // Si el valor no es un string, lo convertimos en JSON stringificado
     const jsonValue = typeof value === 'string' ? value : JSON.stringify(value);
+    
     await AsyncStorage.setItem(key, jsonValue);
     return true;
   } catch (e) {

@@ -1,31 +1,114 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } from "react-native"
+import { useState, useEffect, useRef } from "react"
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  Animated,
+  Alert,
+  RefreshControl,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
-import { getProfile, logout } from "./api" // Changed from "../api" to "./api"
+import { logout, getUserReservations, getAllUsers } from "./api"
 
 export default function AccountScreen({ onNavigate, onLogout, user: initialUser }) {
   const [user, setUser] = useState(initialUser || null)
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [reservations, setReservations] = useState([])
+  const scrollY = useRef(new Animated.Value(0)).current
+  const [isScrolling, setIsScrolling] = useState(false)
+
+  // Calculate header opacity based on scroll position
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 50, 100],
+    outputRange: [0, 0.5, 1],
+    extrapolate: "clamp",
+  })
+
+  // Calculate header translation based on scroll direction
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, -100],
+    extrapolate: "clamp",
+  })
+
+  // Fetch user data and reservations
+  const fetchUserData = async () => {
+    try {
+      setLoading(true)
+      console.log("Fetching user data...")
+
+      // If we have the initial user data with ID, use it
+      if (initialUser && initialUser.id) {
+        try {
+          // Try to get all users and find the current one
+          const allUsers = await getAllUsers()
+          console.log("All users received:", allUsers)
+
+          const currentUser = allUsers.find((u) => u.id === initialUser.id)
+          if (currentUser) {
+            console.log("Found user in all users:", currentUser)
+            setUser(currentUser)
+          } else {
+            // If we can't find the user, use the initial data
+            console.log("Using initial user data as fallback")
+            setUser(initialUser)
+          }
+        } catch (error) {
+          console.error("Error fetching users:", error)
+          setUser(initialUser)
+        }
+      } else {
+        // If we don't have initial user data with ID, try to get all users
+        try {
+          const allUsers = await getAllUsers()
+          console.log("All users received:", allUsers)
+
+          // Just use the first user for demonstration
+          // In a real app, you would need proper authentication
+          if (allUsers && allUsers.length > 0) {
+            setUser(allUsers[0])
+          }
+        } catch (error) {
+          console.error("Error fetching all users:", error)
+          Alert.alert("Error", "Could not load user data. Please try again later.", [{ text: "OK" }])
+        }
+      }
+
+      // Fetch user reservations
+      try {
+        const userReservations = await getUserReservations()
+        console.log("Reservations received:", userReservations)
+        setReservations(userReservations)
+      } catch (error) {
+        console.error("Error fetching reservations:", error)
+        setReservations([])
+      }
+    } catch (error) {
+      console.error("Error in fetchUserData:", error)
+      Alert.alert("Error", "Could not load your profile data. Please try again later.", [{ text: "OK" }])
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
-    // Fetch the latest user data from the server
-    const fetchUserData = async () => {
-      try {
-        setLoading(true)
-        const userData = await getProfile()
-        setUser(userData)
-      } catch (error) {
-        console.error('Error fetching user data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchUserData()
-  }, [])
+  }, [initialUser])
+
+  // Handle pull-to-refresh
+  const onRefresh = () => {
+    setRefreshing(true)
+    fetchUserData()
+  }
 
   // Handle logout
   const handleLogout = async () => {
@@ -33,9 +116,18 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
       await logout()
       onLogout()
     } catch (error) {
-      console.error('Error logging out:', error)
+      console.error("Error logging out:", error)
     }
   }
+
+  // Handle scroll events
+  const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+    useNativeDriver: true,
+    listener: (event) => {
+      const offsetY = event.nativeEvent.contentOffset.y
+      setIsScrolling(offsetY > 0)
+    },
+  })
 
   if (loading && !user) {
     return (
@@ -47,14 +139,36 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
 
   // Calculate stats from user data
   const stats = {
-    trips: user?.reservas?.length || 0,
-    bookmarks: 0, // This could be populated from a bookmarks table if you add one
+    trips: reservations?.length || 0,
+    bookmarks: user?.favoritos?.length || 0,
     reviews: 0, // This could be populated from a reviews table if you add one
   }
 
+  // Check if user is a host (propietario)
+  const isHost = user?.tipo === "propietario"
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "right", "left"]}>
-      <ScrollView style={styles.contentContainer}>
+      {/* Animated header */}
+      <Animated.View
+        style={[
+          styles.animatedHeader,
+          {
+            opacity: headerOpacity,
+            transform: [{ translateY: headerTranslateY }],
+            backgroundColor: isScrolling ? "white" : "transparent",
+          },
+        ]}
+      >
+        <Text style={styles.headerText}>Account</Text>
+      </Animated.View>
+
+      <ScrollView
+        style={styles.contentContainer}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#cf3a23"]} />}
+      >
         <View style={styles.profileHeader}>
           <View style={styles.profileImageContainer}>
             <Image
@@ -69,6 +183,13 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
           </View>
           <Text style={styles.profileName}>{user?.nombre || "User"}</Text>
           <Text style={styles.profileEmail}>{user?.email || "user@example.com"}</Text>
+
+          {/* Show user type badge */}
+          <View style={styles.userTypeBadge}>
+            <Ionicons name={isHost ? "home" : "person"} size={16} color="white" />
+            <Text style={styles.userTypeBadgeText}>{isHost ? "Host" : "Traveler"}</Text>
+          </View>
+
           <TouchableOpacity style={styles.editProfileButton}>
             <Text style={styles.editProfileButtonText}>Edit Profile</Text>
           </TouchableOpacity>
@@ -77,7 +198,7 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{stats.trips}</Text>
-            <Text style={styles.statLabel}>Trips</Text>
+            <Text style={styles.statLabel}>{isHost ? "Listings" : "Trips"}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
@@ -119,27 +240,110 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
           </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>My Activities</Text>
+        {/* Different sections based on user type */}
+        {isHost ? (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>My Properties</Text>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="bookmark-outline" size={24} color="#333" />
-            <Text style={styles.menuItemText}>Saved Places</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.menuItem, styles.highlightedMenuItem]}
+              onPress={() => {
+                // Ensure we're navigating to the AddPlaceScreen
+                onNavigate("addPlace")
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={24} color="#cf3a23" />
+              <Text style={[styles.menuItemText, styles.highlightedMenuItemText]}>Add New Place</Text>
+              <Ionicons name="chevron-forward" size={20} color="#cf3a23" style={styles.menuItemIcon} />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="time-outline" size={24} color="#333" />
-            <Text style={styles.menuItemText}>Recent Searches</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="list-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Manage My Listings</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="star-outline" size={24} color="#333" />
-            <Text style={styles.menuItemText}>Reviews</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="calendar-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Booking Requests</Text>
+              <View style={styles.badgeContainer}>
+                <Text style={styles.badgeText}>{reservations.filter((r) => r.estado === "pendiente").length}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="stats-chart-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Performance Analytics</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>My Activities</Text>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="bookmark-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Saved Places</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="time-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Recent Searches</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="star-outline" size={24} color="#333" />
+              <Text style={styles.menuItemText}>Reviews</Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Reservations section */}
+        {reservations.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>{isHost ? "Recent Bookings" : "My Reservations"}</Text>
+
+            {reservations.slice(0, 3).map((reservation) => (
+              <View key={reservation.id} style={styles.reservationItem}>
+                <View style={styles.reservationHeader}>
+                  <Text style={styles.reservationPlace}>{reservation.lugar?.nombre || "Unknown Place"}</Text>
+                  <View
+                    style={[
+                      styles.reservationStatus,
+                      reservation.estado === "confirmada"
+                        ? styles.statusConfirmed
+                        : reservation.estado === "cancelada"
+                          ? styles.statusCancelled
+                          : styles.statusPending,
+                    ]}
+                  >
+                    <Text style={styles.reservationStatusText}>
+                      {reservation.estado === "confirmada"
+                        ? "Confirmed"
+                        : reservation.estado === "cancelada"
+                          ? "Cancelled"
+                          : "Pending"}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.reservationDates}>
+                  {new Date(reservation.fecha_inicio).toLocaleDateString()} -{" "}
+                  {new Date(reservation.fecha_fin).toLocaleDateString()}
+                </Text>
+              </View>
+            ))}
+
+            {reservations.length > 3 && (
+              <TouchableOpacity style={styles.viewAllButton}>
+                <Text style={styles.viewAllButtonText}>View All Reservations</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log Out</Text>
@@ -177,8 +381,24 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  animatedHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  headerText: {
+    fontSize: 18,
+    fontWeight: "bold",
   },
   contentContainer: {
     flex: 1,
@@ -220,7 +440,21 @@ const styles = StyleSheet.create({
   profileEmail: {
     fontSize: 16,
     color: "#666",
+    marginBottom: 8,
+  },
+  userTypeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#cf3a23",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
     marginBottom: 16,
+  },
+  userTypeBadgeText: {
+    color: "white",
+    fontWeight: "500",
+    marginLeft: 4,
   },
   editProfileButton: {
     paddingHorizontal: 16,
@@ -272,13 +506,87 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
   },
+  highlightedMenuItem: {
+    backgroundColor: "rgba(207, 58, 35, 0.05)",
+  },
   menuItemText: {
     fontSize: 16,
     marginLeft: 16,
     flex: 1,
   },
+  highlightedMenuItemText: {
+    color: "#cf3a23",
+    fontWeight: "500",
+  },
   menuItemIcon: {
     marginLeft: "auto",
+  },
+  badgeContainer: {
+    backgroundColor: "#cf3a23",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  badgeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  reservationItem: {
+    backgroundColor: "white",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  reservationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  reservationPlace: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  reservationStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusConfirmed: {
+    backgroundColor: "#4CAF50",
+  },
+  statusPending: {
+    backgroundColor: "#FFC107",
+  },
+  statusCancelled: {
+    backgroundColor: "#F44336",
+  },
+  reservationStatusText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  reservationDates: {
+    fontSize: 14,
+    color: "#666",
+  },
+  viewAllButton: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  viewAllButtonText: {
+    color: "#cf3a23",
+    fontWeight: "500",
   },
   logoutButton: {
     marginTop: 32,
