@@ -16,6 +16,7 @@ interface CalendarProps {
   minDate?: Date
   maxDate?: Date
   onMonthChange?: (month: number, year: number) => void
+  fullScreenMode?: boolean
 }
 
 interface Day {
@@ -37,6 +38,7 @@ const Calendar: React.FC<CalendarProps> = ({
   minDate,
   maxDate,
   onMonthChange,
+  fullScreenMode = false,
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth())
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
@@ -270,30 +272,29 @@ const Calendar: React.FC<CalendarProps> = ({
     }
 
     // Determine if this day is disabled
-    const isDisabled = (minDate && day.date && day.date < minDate) || 
-                      (maxDate && day.date && day.date > maxDate) ||
-                      !day.inMonth
+    const isDisabled =
+      (minDate && day.date && day.date < minDate) || (maxDate && day.date && day.date > maxDate) || !day.inMonth
 
     return (
-      <TouchableOpacity 
-        key={index} 
-        style={dayStyles} 
-        onPress={() => handleDateSelect(day)} 
+      <TouchableOpacity
+        key={index}
+        style={dayStyles}
+        onPress={() => handleDateSelect(day)}
         disabled={isDisabled}
         activeOpacity={0.7}
       >
         {day.isInRange && (
-          <Animated.View 
+          <Animated.View
             style={[
               rangeBackgroundStyles,
               {
                 opacity: rangeHighlightAnim,
                 backgroundColor: rangeHighlightAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: ['rgba(207, 58, 35, 0)', 'rgba(207, 58, 35, 0.2)']
-                })
-              }
-            ]} 
+                  outputRange: ["rgba(207, 58, 35, 0)", "rgba(207, 58, 35, 0.2)"],
+                }),
+              },
+            ]}
           />
         )}
         <Text style={textStyles}>{day.day}</Text>
@@ -302,7 +303,7 @@ const Calendar: React.FC<CalendarProps> = ({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, fullScreenMode && styles.fullScreenContainer]}>
       {/* Calendar header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={goToPreviousMonth} style={styles.navButton}>
@@ -341,6 +342,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  fullScreenContainer: {
+    flex: 1,
+    padding: 16,
   },
   header: {
     flexDirection: "row",
