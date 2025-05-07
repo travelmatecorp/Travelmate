@@ -14,8 +14,9 @@ import {
   RefreshControl,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
+import { Ionicons } from "@expo/vector-icons"
 import { logout, getUserReservations, getAllUsers } from "./api"
+import BottomNavigation from "./components/BottomNavigation"
 
 export default function AccountScreen({ onNavigate, onLogout, user: initialUser }) {
   const [user, setUser] = useState(initialUser || null)
@@ -353,23 +354,7 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("calendar")}>
-          <Ionicons name="calendar-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("rewards")}>
-          <MaterialCommunityIcons name="bookmark-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("map")}>
-          <Ionicons name="location-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("messages")}>
-          <Feather name="message-square" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.activeNavItem]}>
-          <Ionicons name="person" size={24} color="#cf3a23" />
-        </TouchableOpacity>
-      </View>
+      <BottomNavigation currentScreen="account" onNavigate={onNavigate} auth={{ isLoggedIn: true }} />
     </SafeAreaView>
   )
 }
@@ -600,26 +585,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
-  },
-  bottomNav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    backgroundColor: "white",
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 48,
-    height: 48,
-  },
-  activeNavItem: {
-    borderRadius: 24,
   },
 })

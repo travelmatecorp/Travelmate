@@ -4,8 +4,22 @@ const cors = require("cors")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const path = require("path")
+const http = require("http")
+const socketIo = require("socket.io")
+const multer = require("multer")
+const fs = require("fs")
 
 const app = express()
+const server = http.createServer(app)
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  },
+})
+
 // Configure CORS to allow requests from any origin
 app.use(
   cors({
@@ -22,11 +36,12 @@ const secret = "Enzolorenzo1111*" // El mismo secreto utilizado para firmar el t
 
 // Database configuration
 const db = mysql.createConnection({
-  host: "172.16.4.42", // IP of the VM
+  host: "172.16.6.147", // Updated IP of the VM
   user: "pepe",
   password: "Enzolorenzo1111*",
   database: "TravelMate",
   port: 3306,
+  connectTimeout: 60000, // Increase timeout to 60 seconds
 })
 
 // Connect to the database
@@ -45,6 +60,98 @@ db.connect((err) => {
       console.log(`Found ${results[0].count} destinations in the database`)
     }
   })
+})
+
+// Create necessary tables for messaging if they don't exist
+const createMessagingTables = () => {
+  // Create conversations table
+  db.query(
+    `
+    CREATE TABLE IF NOT EXISTS conversations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255),
+      is_group BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `,
+    (err) => {
+      if (err) console.error("Error creating conversations table:", err)
+      else console.log("Conversations table ready")
+    },
+  )
+
+  // Create conversation_participants table
+  db.query(
+    `
+    CREATE TABLE IF NOT EXISTS conversation_participants (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      conversation_id INT NOT NULL,
+      user_id INT NOT NULL,
+      joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_participant (conversation_id, user_id)
+    )
+  `,
+    (err) => {
+      if (err) console.error("Error creating conversation_participants table:", err)
+      else console.log("Conversation participants table ready")
+    },
+  )
+
+  // Create messages table
+  db.query(
+    `
+    CREATE TABLE IF NOT EXISTS messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      conversation_id INT NOT NULL,
+      sender_id INT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+      FOREIGN KEY (sender_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    )
+  `,
+    (err) => {
+      if (err) console.error("Error creating messages table:", err)
+      else console.log("Messages table ready")
+    },
+  )
+}
+
+// Call the function to create messaging tables
+createMessagingTables()
+
+// Set up file storage for profile pictures
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, "uploads/profiles")
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+    cb(null, dir)
+  },
+  filename: (req, file, cb) => {
+    // Use user ID + timestamp to ensure unique filenames
+    const userId = req.user ? req.user.id : "unknown"
+    const timestamp = Date.now()
+    const fileExt = path.extname(file.originalname)
+    cb(null, `user_${userId}_${timestamp}${fileExt}`)
+  },
+})
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    // Accept only images
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true)
+    } else {
+      cb(new Error("Only image files are allowed"))
+    }
+  },
 })
 
 // Middleware to verify JWT token
@@ -323,7 +430,6 @@ app.get("/api/lugares/:id", (req, res) => {
   })
 })
 
-
 app.post("/api/lugares", authenticateToken, (req, res) => {
   const { nombre, descripcion, tipo, ubicacion, precio, horario_checkin, horario_checkout, amenities } = req.body
 
@@ -434,15 +540,15 @@ app.post("/api/planes-vacaciones", authenticateToken, (req, res) => {
 
       // Get the created plan with destination info
       db.query(
-        `SELECT pv.*, d.nombre as destino_nombre, d.pais as destino_pais, d.imagen_url as destino_imagen 
-         FROM planes_vacaciones pv 
-         JOIN destinos d ON pv.destino_id = d.id 
+        `SELECT pv.*, d.nombre as destino_nombre, d.pais as destino_pais, d.imagen_url as destino_imagen
+         FROM planes_vacaciones pv
+         JOIN destinos d ON pv.destino_id = d.id
          WHERE pv.id = ?`,
         [result.insertId],
         (err, plans) => {
           if (err) {
             console.error("Error fetching created vacation plan:", err)
-            return res.status(500).json({ error: "Error creating vacation plan" })
+            return res.status(500).json({ error: "Error fetching created vacation plan" })
           }
 
           if (plans.length === 0) {
@@ -450,79 +556,163 @@ app.post("/api/planes-vacaciones", authenticateToken, (req, res) => {
           }
 
           // Format the result to include destino as a nested object
-          const row = plans[0]
-          const {
-            id,
-            usuario_id,
-            destino_id,
-            fecha_inicio,
-            fecha_fin,
-            estado,
-            creado_en,
-            destino_nombre,
-            destino_pais,
-            destino_imagen,
-          } = row
-
-          const formattedPlan = {
-            id,
-            usuario_id,
-            destino_id,
-            fecha_inicio,
-            fecha_fin,
-            estado,
-            creado_en,
+          const plan = plans[0]
+          const formattedResult = {
+            id: plan.id,
+            usuario_id: plan.usuario_id,
+            destino_id: plan.destino_id,
+            fecha_inicio: plan.fecha_inicio,
+            fecha_fin: plan.fecha_fin,
+            estado: plan.estado,
+            creado_en: plan.creado_en,
             destino: {
-              id: destino_id,
-              nombre: destino_nombre,
-              pais: destino_pais,
-              imagen_url: destino_imagen,
+              id: plan.destino_id,
+              nombre: plan.destino_nombre,
+              pais: plan.destino_pais,
+              imagen_url: plan.destino_imagen,
             },
           }
 
-          res.status(201).json(formattedPlan)
+          res.status(201).json(formattedResult)
         },
       )
     },
   )
 })
 
-// Add endpoint to create reservations
-app.post("/api/reservas", authenticateToken, (req, res) => {
-  const { lugar_id, fecha_inicio, fecha_fin } = req.body
-  const usuario_id = req.user.id
+// Delete vacation plan endpoint - Fixed to return proper JSON
+app.delete("/api/planes-vacaciones/:id", authenticateToken, (req, res) => {
+  const { id } = req.params
 
-  if (!lugar_id || !fecha_inicio || !fecha_fin) {
-    return res.status(400).json({ error: "Place ID, start date, and end date are required" })
+  // Verificar que el plan pertenece al usuario autenticado
+  db.query("SELECT * FROM planes_vacaciones WHERE id = ? AND usuario_id = ?", [id, req.user.id], (err, results) => {
+    if (err) {
+      console.error("Error finding vacation plan:", err)
+      return res.status(500).json({ error: "Error finding vacation plan" })
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: "Vacation plan not found or not authorized" })
+    }
+
+    // Eliminar el plan de vacaciones
+    db.query("DELETE FROM planes_vacaciones WHERE id = ?", [id], (err) => {
+      if (err) {
+        console.error("Error deleting vacation plan:", err)
+        return res.status(500).json({ error: "Error deleting vacation plan" })
+      }
+
+      res.status(200).json({ message: "Vacation plan deleted successfully" })
+    })
+  })
+})
+
+// Vacation Activities Routes
+app.get("/api/actividades-vacaciones/plan/:planId", (req, res) => {
+  const { planId } = req.params
+  db.query("SELECT * FROM actividades_vacaciones WHERE plan_vacaciones_id = ?", [planId], (err, results) => {
+    if (err) {
+      console.error("Error fetching vacation activities:", err)
+      return res.status(500).json({ error: "Error fetching vacation activities" })
+    }
+    res.json(results)
+  })
+})
+
+app.post("/api/actividades-vacaciones", authenticateToken, (req, res) => {
+  const { plan_vacaciones_id, nombre, descripcion, fecha, lugar } = req.body
+
+  if (!plan_vacaciones_id || !nombre || !fecha || !lugar) {
+    return res.status(400).json({ error: "Vacation plan, name, date, and place are required" })
   }
 
   db.query(
-    "INSERT INTO reservas (usuario_id, lugar_id, fecha_inicio, fecha_fin, estado) VALUES (?, ?, ?, ?, ?)",
-    [usuario_id, lugar_id, fecha_inicio, fecha_fin, "pendiente"],
+    "INSERT INTO actividades_vacaciones (plan_vacaciones_id, nombre, descripcion, fecha, lugar) VALUES (?, ?, ?, ?, ?)",
+    [plan_vacaciones_id, nombre, descripcion, fecha, lugar],
     (err, result) => {
       if (err) {
-        console.error("Error creating reservation:", err)
-        return res.status(500).json({ error: "Error creating reservation" })
+        console.error("Error creating vacation activity:", err)
+        return res.status(500).json({ error: "Error creating vacation activity" })
       }
 
-      db.query("SELECT * FROM reservas WHERE id = ?", [result.insertId], (err, reservations) => {
+      db.query("SELECT * FROM actividades_vacaciones WHERE id = ?", [result.insertId], (err, activities) => {
         if (err) {
-          console.error("Error fetching created reservation:", err)
-          return res.status(500).json({ error: "Error creating reservation" })
+          console.error("Error fetching created vacation activity:", err)
+          return res.status(500).json({ error: "Error creating vacation activity" })
         }
 
-        res.status(201).json(reservations[0])
+        res.status(201).json(activities[0])
       })
     },
   )
 })
 
-// Serve static files
-app.use(express.static(path.join(__dirname)))
+// Profile Picture Upload Route
+app.post("/api/profile/upload", authenticateToken, upload.single("profile"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" })
+  }
+
+  // File details are in req.file
+  const filename = req.file.filename
+  const userId = req.user.id // Assuming user ID is available in req.user after authentication
+
+  // Update user's profile picture filename in the database
+  db.query("UPDATE usuarios SET profile_picture = ? WHERE id = ?", [filename, userId], (err) => {
+    if (err) {
+      console.error("Error updating profile picture in database:", err)
+      return res.status(500).json({ error: "Error updating profile picture" })
+    }
+
+    res.json({ message: "Profile picture uploaded successfully", filename: filename })
+  })
+})
+
+// Serve static files from the 'uploads' directory
+app.use("/uploads", express.static(path.join(__dirname, "uploads")))
+
+// Socket.IO setup for real-time messaging
+io.on("connection", (socket) => {
+  console.log(`User connected: ${socket.id}`)
+
+  socket.on("join_conversation", (conversationId) => {
+    socket.join(conversationId)
+    console.log(`Socket ${socket.id} joined conversation ${conversationId}`)
+  })
+
+  socket.on("send_message", (data) => {
+    const { conversationId, senderId, content } = data
+
+    // Save the message to the database
+    db.query(
+      "INSERT INTO messages (conversation_id, sender_id, content) VALUES (?, ?, ?)",
+      [conversationId, senderId, content],
+      (err, result) => {
+        if (err) {
+          console.error("Error saving message:", err)
+          return
+        }
+
+        // Emit the message to all users in the conversation
+        io.to(conversationId).emit("receive_message", {
+          id: result.insertId,
+          conversation_id: conversationId,
+          sender_id: senderId,
+          content: content,
+          created_at: new Date(), // You might want to format this
+        })
+      },
+    )
+  })
+
+  socket.on("disconnect", () => {
+    console.log(`User disconnected: ${socket.id}`)
+  })
+})
 
 // Start the server
-const PORT = 3001
-// Listen on all network interfaces (0.0.0.0) instead of just localhost
-app.listen(PORT, "0.0.0.0", () => {
+const PORT = process.env.PORT || 3001
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`)
   console.log(`Server running on http://0.0.0.0:${PORT} (accessible from all network interfaces)`)
 })
