@@ -64,7 +64,7 @@ export default function LoginScreen({ onLogin, onNavigate }) {
     <SafeAreaView style={styles.container} edges={["top", "right", "left"]}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView style={styles.contentContainer}>
-          <TouchableOpacity style={styles.backButton} onPress={() => onNavigate("main")}>
+          <TouchableOpacity style={styles.backButton} onPress={() => onNavigate("home")}>
             <Ionicons name="arrow-back" size={24} color="black" />
           </TouchableOpacity>
 

@@ -46,6 +46,11 @@ const CalendarScreen = ({ onNavigate, auth }) => {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false)
   const [planToDelete, setPlanToDelete] = useState(null)
 
+  // Debug logging
+  useEffect(() => {
+    console.log("CalendarScreen mounted")
+  }, [])
+
   // Fetch vacation plans on component mount
   useEffect(() => {
     if (auth?.isLoggedIn) {
@@ -86,7 +91,9 @@ const CalendarScreen = ({ onNavigate, auth }) => {
   const fetchVacationPlans = async () => {
     try {
       setIsLoading(true)
+      console.log("Fetching vacation plans for user:", auth?.user?.id)
       const plans = await getVacationPlans(auth?.user?.id)
+      console.log(`Fetched ${plans.length} vacation plans:`, plans)
       setVacationPlans(plans)
     } catch (error) {
       console.error("Error fetching vacation plans:", error)
@@ -163,7 +170,9 @@ const CalendarScreen = ({ onNavigate, auth }) => {
         fecha_fin: endDate.toISOString().split("T")[0],
       }
 
+      console.log("Creating vacation plan with data:", vacationData)
       const newVacation = await createVacationPlan(vacationData)
+      console.log("Created vacation plan:", newVacation)
 
       // Update local state
       setVacationPlan({
@@ -589,7 +598,19 @@ const CalendarScreen = ({ onNavigate, auth }) => {
           <TouchableOpacity
             style={styles.editPlanButton}
             onPress={() => {
-              // Set the vacation plan and navigate to timeline
+              // Debug logging
+              console.log("Timeline button clicked for plan:", plan)
+              console.log("Plan ID:", plan.id)
+              console.log("Plan destino:", plan.destino)
+
+              // Make sure we have the complete plan data before navigating
+              if (!plan || !plan.id) {
+                console.error("Missing plan ID")
+                Alert.alert("Error", "Cannot view timeline: Missing plan ID")
+                return
+              }
+
+              // Set the vacation plan in context
               setVacationPlan({
                 id: plan.id,
                 destino: plan.destino,
@@ -597,7 +618,12 @@ const CalendarScreen = ({ onNavigate, auth }) => {
                 fechaFin: new Date(plan.fecha_fin),
                 estado: plan.estado,
               })
-              onNavigate("vacationTimeline", { planId: plan.id })
+
+              // Pass only the plan ID to the timeline screen
+              // The VacationTimelineScreen will fetch the complete plan data
+              onNavigate("vacationTimeline", {
+                planId: plan.id,
+              })
             }}
           >
             <Ionicons name="calendar-outline" size={18} color="#007bff" />

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
-import { getVacationActivities, deleteVacationActivity, formatDate } from "./api"
+import { getVacationActivities, deleteVacationActivity, formatDate, getVacationPlans } from "./api"
+import { useVacation } from "./context/VacationContext"
 
 export default function VacationTimelineScreen({ onNavigate, auth, route }) {
   const [activities, setActivities] = useState([])
@@ -15,25 +16,134 @@ export default function VacationTimelineScreen({ onNavigate, auth, route }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [vacationStarted, setVacationStarted] = useState(false)
 
-  useEffect(() => {
-    if (route?.params?.planId) {
-      setVacationPlan(route.params.plan)
-      fetchActivities(route.params.planId)
+  const [currentDay, setCurrentDay] = useState(1)
+  const [totalDays, setTotalDays] = useState(0)
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [availableDates, setAvailableDates] = useState([])
+  const { setSelectedDestination } = useVacation()
 
-      // Check if vacation has started
-      const today = new Date()
-      const startDate = new Date(route.params.plan.fecha_inicio)
-      setVacationStarted(today >= startDate)
-    } else {
-      setLoading(false)
-      Alert.alert("Error", "No vacation plan provided")
+  // Debug logging
+  useEffect(() => {
+    console.log("VacationTimelineScreen mounted with route params:", route?.params)
+  }, [])
+
+  useEffect(() => {
+    const loadPlanData = async () => {
+      try {
+        setLoading(true)
+
+        // Check if we have a planId
+        if (!route?.params?.planId) {
+          console.error("No planId provided in route params")
+          setLoading(false)
+          Alert.alert("Error", "No vacation plan ID provided")
+          return
+        }
+
+        const planId = route.params.planId
+        console.log(`Loading plan data for planId: ${planId}`)
+
+        // If we have a complete plan object in params, use it
+        if (route.params.plan && route.params.plan.destino) {
+          console.log("Using plan from route params:", route.params.plan)
+          setVacationPlan(route.params.plan)
+        }
+        // Otherwise, fetch the plan data from the API
+        else {
+          console.log("Fetching plan data from API")
+          // Get the user ID from auth
+          const userId = auth?.user?.id
+          if (!userId) {
+            console.error("No user ID available")
+            setLoading(false)
+            Alert.alert("Error", "User not authenticated")
+            return
+          }
+
+          // Fetch all vacation plans for the user
+          const plans = await getVacationPlans(userId)
+          console.log(`Fetched ${plans.length} vacation plans`)
+
+          // Find the plan with the matching ID
+          const plan = plans.find((p) => p.id === planId)
+          if (!plan) {
+            console.error(`Plan with ID ${planId} not found`)
+            setLoading(false)
+            Alert.alert("Error", "Vacation plan not found")
+            return
+          }
+
+          console.log("Found plan:", plan)
+          setVacationPlan(plan)
+        }
+
+        // Fetch activities for the plan
+        fetchActivities(planId)
+
+        // Check if vacation has started
+        if (vacationPlan && vacationPlan.fecha_inicio) {
+          const today = new Date()
+          const startDate = new Date(vacationPlan.fecha_inicio)
+          setVacationStarted(today >= startDate)
+        }
+      } catch (error) {
+        console.error("Error loading plan data:", error)
+        setLoading(false)
+        Alert.alert("Error", "Failed to load vacation plan data")
+      }
     }
-  }, [route?.params])
+
+    loadPlanData()
+  }, [route?.params?.planId, auth?.user?.id])
+
+  useEffect(() => {
+    console.log("vacationPlan updated:", vacationPlan)
+
+    if (vacationPlan && vacationPlan.fecha_inicio && vacationPlan.fecha_fin) {
+      const startDate = new Date(vacationPlan.fecha_inicio)
+      const endDate = new Date(vacationPlan.fecha_fin)
+
+      // Calculate total days
+      const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1
+      setTotalDays(days)
+
+      // Generate array of available dates
+      const dates = []
+      for (let i = 0; i < days; i++) {
+        const date = new Date(startDate)
+        date.setDate(date.getDate() + i)
+        dates.push(date)
+      }
+      setAvailableDates(dates)
+
+      // Set selected date to today if within vacation, otherwise first day
+      const today = new Date()
+      if (today >= startDate && today <= endDate) {
+        const dayDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1
+        setCurrentDay(dayDiff)
+        setSelectedDate(today)
+      } else {
+        setCurrentDay(1)
+        setSelectedDate(startDate)
+      }
+
+      // Set destination in context for adding activities
+      if (vacationPlan.destino) {
+        console.log("Setting selected destination:", vacationPlan.destino)
+        setSelectedDestination(vacationPlan.destino)
+      } else {
+        console.warn("No destination in vacation plan")
+      }
+    } else {
+      console.warn("Missing date information in vacation plan")
+    }
+  }, [vacationPlan])
 
   const fetchActivities = async (planId) => {
     try {
-      setLoading(true)
+      console.log(`Fetching activities for plan ${planId}`)
       const activitiesData = await getVacationActivities({ plan_id: planId })
+      console.log(`Fetched ${activitiesData.length} activities`)
 
       // Group activities by date
       const groupedActivities = groupActivitiesByDate(activitiesData)
@@ -49,7 +159,17 @@ export default function VacationTimelineScreen({ onNavigate, auth, route }) {
   const groupActivitiesByDate = (activitiesData) => {
     const grouped = {}
 
+    if (!activitiesData || !Array.isArray(activitiesData)) {
+      console.warn("Invalid activities data:", activitiesData)
+      return {}
+    }
+
     activitiesData.forEach((activity) => {
+      if (!activity || !activity.fecha) {
+        console.warn("Invalid activity data:", activity)
+        return
+      }
+
       const date = new Date(activity.fecha).toISOString().split("T")[0]
       if (!grouped[date]) {
         grouped[date] = []
@@ -68,12 +188,29 @@ export default function VacationTimelineScreen({ onNavigate, auth, route }) {
     return grouped
   }
 
+  const handleDateSelect = (date) => {
+    if (!vacationPlan || !vacationPlan.fecha_inicio) {
+      console.warn("Cannot select date: missing vacation plan data")
+      return
+    }
+
+    setSelectedDate(date)
+    const startDate = new Date(vacationPlan.fecha_inicio)
+    const dayDiff = Math.floor((date - startDate) / (1000 * 60 * 60 * 24)) + 1
+    setCurrentDay(dayDiff)
+  }
+
   const handleAddActivity = () => {
     // Navigate to map screen to select a place
+    if (!vacationPlan || !vacationPlan.destino) {
+      Alert.alert("Error", "Vacation plan or destination not found")
+      return
+    }
+
     onNavigate("map", {
       destination: vacationPlan.destino,
       planId: vacationPlan.id,
-      selectedDate: new Date().toISOString(),
+      selectedDate: selectedDate ? selectedDate.toISOString() : new Date().toISOString(),
     })
   }
 
@@ -89,7 +226,9 @@ export default function VacationTimelineScreen({ onNavigate, auth, route }) {
       await deleteVacationActivity(selectedActivity.id)
 
       // Refresh activities
-      fetchActivities(vacationPlan.id)
+      if (vacationPlan && vacationPlan.id) {
+        fetchActivities(vacationPlan.id)
+      }
       setShowDeleteModal(false)
       setSelectedActivity(null)
 
@@ -181,6 +320,27 @@ export default function VacationTimelineScreen({ onNavigate, auth, route }) {
     )
   }
 
+  // If we still don't have a vacation plan after loading, show an error
+  if (!vacationPlan) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => onNavigate("calendar")} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="black" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Vacation Timeline</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#d32f2f" />
+          <Text style={styles.errorText}>Could not load vacation plan</Text>
+          <TouchableOpacity style={styles.errorButton} onPress={() => onNavigate("calendar")}>
+            <Text style={styles.errorButtonText}>Return to Calendar</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "right", "left"]}>
       <View style={styles.header}>
@@ -193,14 +353,58 @@ export default function VacationTimelineScreen({ onNavigate, auth, route }) {
         </TouchableOpacity>
       </View>
 
-      {vacationPlan && (
-        <View style={styles.vacationHeader}>
-          <Text style={styles.vacationTitle}>{vacationPlan.destino.nombre}</Text>
-          <Text style={styles.vacationDates}>
-            {formatDate(vacationPlan.fecha_inicio)} - {formatDate(vacationPlan.fecha_fin)}
-          </Text>
-        </View>
-      )}
+      <View style={styles.vacationHeader}>
+        <Text style={styles.vacationTitle}>{vacationPlan?.destino?.nombre || "Unknown Destination"}</Text>
+        <Text style={styles.vacationDates}>
+          {formatDate(vacationPlan?.fecha_inicio)} - {formatDate(vacationPlan?.fecha_fin)}
+        </Text>
+
+        {totalDays > 0 && (
+          <View style={styles.dayIndicator}>
+            <Text style={styles.dayIndicatorText}>
+              Day {currentDay} of {totalDays}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Add date selector */}
+      <View style={styles.dateSelector}>
+        <Text style={styles.dateSelectorLabel}>Select Day:</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.dateSelectorContent}
+        >
+          {availableDates.map((date, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.dateButton,
+                selectedDate && date.toDateString() === selectedDate.toDateString() && styles.dateButtonSelected,
+              ]}
+              onPress={() => handleDateSelect(date)}
+            >
+              <Text
+                style={[
+                  styles.dateButtonDay,
+                  selectedDate && date.toDateString() === selectedDate.toDateString() && styles.dateButtonTextSelected,
+                ]}
+              >
+                {date.getDate()}
+              </Text>
+              <Text
+                style={[
+                  styles.dateButtonMonth,
+                  selectedDate && date.toDateString() === selectedDate.toDateString() && styles.dateButtonTextSelected,
+                ]}
+              >
+                {date.toLocaleString("default", { month: "short" })}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       <ScrollView style={styles.content}>
         {Object.keys(activities).length > 0 ? (
@@ -271,6 +475,30 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#666",
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  errorButton: {
+    backgroundColor: "#cf3a23",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   header: {
     flexDirection: "row",
@@ -483,5 +711,55 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: "white",
     fontWeight: "500",
+  },
+  dayIndicator: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  dayIndicatorText: {
+    color: "white",
+    fontWeight: "bold",
+  },
+  dateSelector: {
+    backgroundColor: "white",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  dateSelectorLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  dateSelectorContent: {
+    paddingVertical: 4,
+  },
+  dateButton: {
+    width: 60,
+    height: 70,
+    borderRadius: 8,
+    backgroundColor: "#f0f0f0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+    padding: 8,
+  },
+  dateButtonSelected: {
+    backgroundColor: "#cf3a23",
+  },
+  dateButtonDay: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  dateButtonMonth: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  dateButtonTextSelected: {
+    color: "white",
   },
 })

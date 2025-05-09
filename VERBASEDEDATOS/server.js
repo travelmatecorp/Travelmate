@@ -36,7 +36,7 @@ const secret = "Enzolorenzo1111*" // El mismo secreto utilizado para firmar el t
 
 // Database configuration
 const db = mysql.createConnection({
-  host: "172.16.6.147", // Updated IP of the VM
+  host: "172.16.5.54", // Updated IP of the VM
   user: "pepe",
   password: "Enzolorenzo1111*",
   database: "TravelMate",
@@ -222,6 +222,36 @@ app.get("/api/reservas", (req, res) => {
   })
 })
 
+app.post("/api/reservas", (req, res) => {
+  const { usuario_id, lugar_id, fecha_inicio, fecha_fin } = req.body;
+
+  if (!usuario_id || !lugar_id || !fecha_inicio || !fecha_fin) {
+    return res.status(400).json({ error: "Todos los campos son obligatorios" });
+  }
+
+  const estado = 'pendiente';
+  const creado_en = new Date();
+
+  const query = `
+    INSERT INTO reservas (usuario_id, lugar_id, fecha_inicio, fecha_fin, estado, creado_en)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query(
+    query,
+    [usuario_id, lugar_id, fecha_inicio, fecha_fin, estado, creado_en],
+    (err, result) => {
+      if (err) {
+        console.error("Error al crear reserva:", err);
+        return res.status(500).json({ error: "Error al crear reserva" });
+      }
+
+      res.status(201).json({ message: "Reserva creada exitosamente", id: result.insertId });
+    }
+  );
+});
+
+
 app.get("/api/destinos", (req, res) => {
   console.log("Fetching all destinations...")
   db.query("SELECT * FROM destinos", (err, results) => {
@@ -247,13 +277,18 @@ app.get("/api/planes_vacaciones", (req, res) => {
 })
 
 app.get("/api/actividades_vacaciones", (req, res) => {
-  console.log("Fetching all vacation activities...")
-  db.query("SELECT * FROM actividades_vacaciones", (err, results) => {
+  const { plan_id } = req.query
+
+  if (!plan_id) {
+    console.warn("No plan_id provided to /api/actividades-vacaciones endpoint")
+    return res.json([]) // Return empty array instead of an error
+  }
+
+  db.query("SELECT * FROM actividades_vacaciones WHERE plan_vacaciones_id = ?", [plan_id], (err, results) => {
     if (err) {
       console.error("Error fetching vacation activities:", err)
-      return res.status(500).json({ error: err.message })
+      return res.status(500).json({ error: "Error fetching vacation activities" })
     }
-    console.log(`Returning ${results.length} vacation activities`)
     res.json(results)
   })
 })
@@ -472,6 +507,11 @@ app.post("/api/lugares", authenticateToken, (req, res) => {
 // Vacation Plans Routes
 app.get("/api/planes-vacaciones/usuario/:userId", (req, res) => {
   const { userId } = req.params
+
+  if (!userId) {
+    return res.status(400).json({ error: "User ID is required" })
+  }
+
   db.query(
     `SELECT pv.*, d.nombre as destino_nombre, d.pais as destino_pais, d.imagen_url as destino_imagen 
      FROM planes_vacaciones pv 

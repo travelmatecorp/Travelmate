@@ -248,7 +248,7 @@ export async function updateVacationPlan(planId, planData) {
         status: 503,
       }
     } else {
-      // Si el error ocurrió al configurar la solicitud
+      // Si el error ocurri�� al configurar la solicitud
       throw {
         error: error.message || "An unexpected error occurred",
         status: 500,
@@ -260,6 +260,11 @@ export async function updateVacationPlan(planId, planData) {
 // Get vacation activities
 export async function getVacationActivities(params = {}) {
   try {
+    if (!params.plan_id) {
+      console.error("No plan_id provided to getVacationActivities")
+      return [] // Return empty array instead of throwing an error
+    }
+
     const response = await api.get("api/actividades-vacaciones", { params })
     return response.data
   } catch (error) {
@@ -274,13 +279,22 @@ export async function getVacationActivities(params = {}) {
 // Create vacation activity
 export async function createVacationActivity(activityData) {
   try {
+    console.log("Creating vacation activity with data:", activityData)
     const response = await api.post("api/actividades-vacaciones", activityData)
+    console.log("Create vacation activity response:", response.data)
     return response.data
   } catch (error) {
     console.error("Error creating vacation activity:", error)
-    throw {
-      error: error.response?.data?.error || "Failed to create vacation activity",
-      status: error.response?.status || 500,
+
+    if (error.response) {
+      throw {
+        error: error.response.data?.error || "Failed to create vacation activity",
+        status: error.response.status,
+      }
+    } else if (error.request) {
+      throw { error: "No response from server. Please check your connection.", status: 503 }
+    } else {
+      throw { error: error.message || "An unexpected error occurred", status: 500 }
     }
   }
 }
@@ -435,7 +449,7 @@ export async function getFavorites() {
 // Create a reservation
 export async function createReservation(reservationData) {
   try {
-    const response = await api.post("api/reservas", reservationData)
+    const response = await api.post("/api/reservas", reservationData)
     return response.data
   } catch (error) {
     console.error("Create reservation error:", error)
@@ -446,7 +460,7 @@ export async function createReservation(reservationData) {
 // Get user reservations
 export async function getUserReservations() {
   try {
-    const response = await api.get("api/reservas")
+    const response = await api.get("/api/reservas")
     return response.data
   } catch (error) {
     console.error("Get user reservations error:", error)

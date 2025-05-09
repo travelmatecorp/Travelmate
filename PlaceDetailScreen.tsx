@@ -16,7 +16,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
 import DateTimePicker from "@react-native-community/datetimepicker"
-import { getPlaceById, addToFavorites, removeFromFavorites, createReservation, formatDate } from "./api"
+import {
+  getPlaceById,
+  addToFavorites,
+  removeFromFavorites,
+  createReservation,
+  formatDate,
+  getVacationPlans,
+  createVacationActivity,
+} from "./api"
+import { useVacation } from "./context/VacationContext"
 
 export default function PlaceDetailScreen({ onNavigate, auth, route }) {
   const [place, setPlace] = useState(null)
@@ -30,6 +39,20 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [datePickerMode, setDatePickerMode] = useState("start") // "start" or "end"
   const [datePickerVisible, setDatePickerVisible] = useState(false)
+
+  // New state for vacation booking
+  const [showVacationModal, setShowVacationModal] = useState(false)
+  const [vacationPlans, setVacationPlans] = useState([])
+  const [selectedVacationPlan, setSelectedVacationPlan] = useState(null)
+  const [activityDate, setActivityDate] = useState(new Date())
+  const [activityTime, setActivityTime] = useState("12:00")
+  const [activityNotes, setActivityNotes] = useState("")
+  const [showActivityDatePicker, setShowActivityDatePicker] = useState(false)
+  const [showActivityTimePicker, setShowActivityTimePicker] = useState(false)
+  const [loadingVacationPlans, setLoadingVacationPlans] = useState(false)
+
+  // Get the vacation context
+  const { vacationPlan: currentVacationPlan } = useVacation()
 
   useEffect(() => {
     // Debug: Log the entire route object
@@ -147,6 +170,62 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
     setShowReservationModal(true)
   }
 
+  // New function to handle adding to vacation
+  const handleAddToVacation = async () => {
+    if (!auth?.isLoggedIn) {
+      Alert.alert("Login Required", "Please log in to add to vacation", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Login", onPress: () => onNavigate("login") },
+      ])
+      return
+    }
+
+    try {
+      setLoadingVacationPlans(true)
+      // Fetch user's vacation plans
+      const plans = await getVacationPlans(auth.user.id)
+      console.log("Fetched vacation plans:", plans)
+
+      if (plans.length === 0) {
+        Alert.alert("No Vacation Plans", "You don't have any vacation plans. Would you like to create one?", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Create Plan", onPress: () => onNavigate("calendar") },
+        ])
+        return
+      }
+
+      setVacationPlans(plans)
+
+      // If there's a current vacation plan in context, select it by default
+      if (currentVacationPlan && currentVacationPlan.id) {
+        const matchingPlan = plans.find((p) => p.id === currentVacationPlan.id)
+        if (matchingPlan) {
+          setSelectedVacationPlan(matchingPlan)
+        } else {
+          setSelectedVacationPlan(plans[0])
+        }
+      } else {
+        setSelectedVacationPlan(plans[0])
+      }
+
+      // Set default activity date to today or the start date of the selected plan
+      if (selectedVacationPlan && selectedVacationPlan.fecha_inicio) {
+        const startDate = new Date(selectedVacationPlan.fecha_inicio)
+        const today = new Date()
+        setActivityDate(today > startDate ? today : startDate)
+      } else {
+        setActivityDate(new Date())
+      }
+
+      setShowVacationModal(true)
+    } catch (error) {
+      console.error("Error fetching vacation plans:", error)
+      Alert.alert("Error", "Failed to load vacation plans")
+    } finally {
+      setLoadingVacationPlans(false)
+    }
+  }
+
   const handleDateChange = (event, selectedDate) => {
     setDatePickerVisible(Platform.OS === "ios")
     if (selectedDate) {
@@ -169,10 +248,30 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
     }
   }
 
+  // New function to handle activity date change
+  const handleActivityDateChange = (event, selectedDate) => {
+    setShowActivityDatePicker(Platform.OS === "ios")
+    if (selectedDate) {
+      setActivityDate(selectedDate)
+    }
+  }
+
+  // New function to handle activity time change
+  const handleActivityTimeChange = (event, selectedTime) => {
+    setShowActivityTimePicker(Platform.OS === "ios")
+    if (selectedTime) {
+      const hours = selectedTime.getHours().toString().padStart(2, "0")
+      const minutes = selectedTime.getMinutes().toString().padStart(2, "0")
+      setActivityTime(`${hours}:${minutes}`)
+    }
+  }
+
   const showDatepicker = (mode) => {
     setDatePickerMode(mode)
     setDatePickerVisible(true)
   }
+
+  // Update the handleConfirmReservation function to add better error handling and debugging
 
   const handleConfirmReservation = async () => {
     try {
@@ -197,12 +296,102 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
         fecha_fin: endDate.toISOString().split("T")[0],
       }
 
-      await createReservation(reservationData)
+      console.log("Attempting to create reservation with data:", reservationData)
+
+      // Show loading indicator
+      setLoading(true)
+
+      const result = await createReservation(reservationData)
+      console.log("Reservation created successfully:", result)
+
       setShowReservationModal(false)
       Alert.alert("Success", "Reservation created successfully")
     } catch (error) {
-      console.error("Error creating reservation:", error)
-      Alert.alert("Error", "Failed to create reservation")
+      console.error("Error in handleConfirmReservation:", error)
+
+      // Show more detailed error message
+      Alert.alert("Error", `Failed to create reservation: ${error.details || error.error || "Unknown error"}`, [
+        {
+          text: "Try Again",
+          onPress: () => console.log("User will try again"),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => setShowReservationModal(false),
+        },
+      ])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Also update the handleAddActivityToVacation function with similar improvements
+
+  const handleAddActivityToVacation = async () => {
+    if (!selectedVacationPlan) {
+      Alert.alert("Error", "Please select a vacation plan")
+      return
+    }
+
+    try {
+      // Validate the activity date is within the vacation dates
+      const vacationStart = new Date(selectedVacationPlan.fecha_inicio)
+      const vacationEnd = new Date(selectedVacationPlan.fecha_fin)
+
+      if (activityDate < vacationStart || activityDate > vacationEnd) {
+        Alert.alert("Invalid Date", "The activity date must be within your vacation dates")
+        return
+      }
+
+      // Create the activity data
+      const activityData = {
+        plan_id: selectedVacationPlan.id,
+        lugar_id: place.id,
+        fecha: activityDate.toISOString().split("T")[0],
+        hora_inicio: activityTime,
+        hora_fin: activityTime, // For simplicity, we're using the same time for start and end
+        notas: activityNotes,
+      }
+
+      console.log("Creating vacation activity with data:", activityData)
+
+      // Show loading indicator
+      setLoading(true)
+
+      // Call the API to create the activity
+      const newActivity = await createVacationActivity(activityData)
+      console.log("Created vacation activity:", newActivity)
+
+      // Close the modal and show success message
+      setShowVacationModal(false)
+      Alert.alert("Success", "Activity added to your vacation timeline", [
+        { text: "OK" },
+        {
+          text: "View Timeline",
+          onPress: () =>
+            onNavigate("vacationTimeline", {
+              planId: selectedVacationPlan.id,
+            }),
+        },
+      ])
+    } catch (error) {
+      console.error("Error adding activity to vacation:", error)
+
+      // Show more detailed error message
+      Alert.alert("Error", `Failed to add activity: ${error.details || error.error || "Unknown error"}`, [
+        {
+          text: "Try Again",
+          onPress: () => console.log("User will try again"),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => setShowVacationModal(false),
+        },
+      ])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -331,11 +520,22 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
             </View>
           )}
 
-          {(place.tipo === "alojamiento" || place.tipo === "hotel") && (
-            <TouchableOpacity style={styles.reserveButton} onPress={handleMakeReservation}>
-              <Text style={styles.reserveButtonText}>Make Reservation</Text>
+          {/* Action buttons */}
+          <View style={styles.actionButtonsContainer}>
+            {/* Add to Vacation button */}
+            <TouchableOpacity style={styles.addToVacationButton} onPress={handleAddToVacation}>
+              <Ionicons name="calendar-outline" size={20} color="white" />
+              <Text style={styles.addToVacationButtonText}>Add to Vacation</Text>
             </TouchableOpacity>
-          )}
+
+            {/* Make Reservation button (for accommodations) */}
+            {(place.tipo === "alojamiento" || place.tipo === "hotel") && (
+              <TouchableOpacity style={styles.reserveButton} onPress={handleMakeReservation}>
+                <Ionicons name="bed-outline" size={20} color="white" />
+                <Text style={styles.reserveButtonText}>Make Reservation</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </ScrollView>
 
@@ -411,9 +611,123 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
           </View>
         </View>
       </Modal>
+
+      {/* Add to Vacation Modal */}
+      <Modal
+        visible={showVacationModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowVacationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add to Vacation Timeline</Text>
+              <TouchableOpacity onPress={() => setShowVacationModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalPlaceName}>{place.nombre}</Text>
+
+              {loadingVacationPlans ? (
+                <ActivityIndicator size="small" color="#cf3a23" style={{ marginVertical: 20 }} />
+              ) : (
+                <>
+                  {/* Vacation Plan Selector */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Select Vacation:</Text>
+                    <View style={styles.vacationPlanSelector}>
+                      {vacationPlans.map((plan) => (
+                        <TouchableOpacity
+                          key={plan.id}
+                          style={[
+                            styles.vacationPlanOption,
+                            selectedVacationPlan?.id === plan.id && styles.vacationPlanOptionSelected,
+                          ]}
+                          onPress={() => setSelectedVacationPlan(plan)}
+                        >
+                          <Text
+                            style={[
+                              styles.vacationPlanOptionText,
+                              selectedVacationPlan?.id === plan.id && styles.vacationPlanOptionTextSelected,
+                            ]}
+                          >
+                            {plan.destino?.nombre || "Unknown"} ({formatDate(plan.fecha_inicio)} -{" "}
+                            {formatDate(plan.fecha_fin)})
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Date Picker */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Date:</Text>
+                    <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowActivityDatePicker(true)}>
+                      <Text style={styles.datePickerButtonText}>{formatDate(activityDate)}</Text>
+                      <Ionicons name="calendar-outline" size={20} color="#666" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Time Picker */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Time:</Text>
+                    <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowActivityTimePicker(true)}>
+                      <Text style={styles.datePickerButtonText}>{activityTime}</Text>
+                      <Ionicons name="time-outline" size={20} color="#666" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Notes */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Notes (optional):</Text>
+                    <TextInput
+                      style={styles.notesInput}
+                      value={activityNotes}
+                      onChangeText={setActivityNotes}
+                      placeholder="Add any notes about this activity..."
+                      multiline
+                    />
+                  </View>
+
+                  {/* Date/Time Pickers */}
+                  {showActivityDatePicker && (
+                    <DateTimePicker
+                      value={activityDate}
+                      mode="date"
+                      display="default"
+                      onChange={handleActivityDateChange}
+                      minimumDate={selectedVacationPlan ? new Date(selectedVacationPlan.fecha_inicio) : new Date()}
+                      maximumDate={selectedVacationPlan ? new Date(selectedVacationPlan.fecha_fin) : undefined}
+                    />
+                  )}
+
+                  {showActivityTimePicker && (
+                    <DateTimePicker
+                      value={new Date(`2023-01-01T${activityTime}:00`)}
+                      mode="time"
+                      display="default"
+                      onChange={handleActivityTimeChange}
+                    />
+                  )}
+
+                  <TouchableOpacity style={styles.confirmButton} onPress={handleAddActivityToVacation}>
+                    <Text style={styles.confirmButtonText}>Add to Timeline</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
+
+// Import TextInput at the top of the file
+import { TextInput } from "react-native"
 
 const styles = StyleSheet.create({
   container: {
@@ -569,17 +883,41 @@ const styles = StyleSheet.create({
     color: "#333",
     marginLeft: 8,
   },
+  // New styles for action buttons container
+  actionButtonsContainer: {
+    flexDirection: "column",
+    gap: 12,
+    marginTop: 16,
+  },
+  // Add to Vacation button
+  addToVacationButton: {
+    backgroundColor: "#4CAF50",
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  addToVacationButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 8,
+  },
+  // Reserve button
   reserveButton: {
     backgroundColor: "#cf3a23",
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: "center",
-    marginTop: 16,
+    flexDirection: "row",
+    justifyContent: "center",
   },
   reserveButtonText: {
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
+    marginLeft: 8,
   },
   modalOverlay: {
     flex: 1,
@@ -669,5 +1007,44 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  // New styles for vacation modal
+  formGroup: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  vacationPlanSelector: {
+    marginBottom: 8,
+  },
+  vacationPlanOption: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: "#f9f9f9",
+  },
+  vacationPlanOptionSelected: {
+    borderColor: "#4CAF50",
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+  },
+  vacationPlanOptionText: {
+    fontSize: 14,
+  },
+  vacationPlanOptionTextSelected: {
+    fontWeight: "bold",
+    color: "#4CAF50",
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    height: 100,
+    textAlignVertical: "top",
   },
 })
