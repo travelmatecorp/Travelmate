@@ -1,3 +1,7 @@
+//API FUNCIONAL EN RAIZ
+
+
+
 import { storeData, getData, removeData } from "./storage"
 import axios from "axios"
 
@@ -191,6 +195,29 @@ export async function getUserReservations() {
   }
 }
 
+export async function createVacationActivity(activityData, token) {
+  try {
+    const response = await api.post("/actividades_vacaciones", activityData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    return response.data
+  } catch (error) {
+    console.error("createVacationActivity error:", error)
+
+    if (error.response) {
+      throw { error: error.response.data.error || "Error creating activity" }
+    } else if (error.request) {
+      throw { error: "No response from server. Please check your connection." }
+    } else {
+      throw { error: error.message || "An unexpected error occurred" }
+    }
+  }
+}
+
+
+
 // Export the axios instance for custom requests
 export { api }
-

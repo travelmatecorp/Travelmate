@@ -17,7 +17,8 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
 import DateTimePicker from "@react-native-community/datetimepicker"
 import { getPlaceById, addToFavorites, removeFromFavorites, createReservation, formatDate } from "./api"
-
+import { createVacationActivity } from "./api"
+import { useVacation } from "./context/VacationContext"
 export default function PlaceDetailScreen({ onNavigate, auth, route }) {
   const [place, setPlace] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -30,6 +31,8 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [datePickerMode, setDatePickerMode] = useState("start") // "start" or "end"
   const [datePickerVisible, setDatePickerVisible] = useState(false)
+  const { vacationPlan } = useVacation()
+  const planId = route?.params?.planId || vacationPlan?.id
 
   useEffect(() => {
     // Debug: Log the entire route object
@@ -93,7 +96,7 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
       setLoading(true)
       const placeData = await getPlaceById(placeId)
       console.log("Place data received:", placeData)
-
+      console.log(placeData)
       // If we got a place object directly, use it
       if (placeData) {
         setPlace(placeData)
@@ -178,7 +181,6 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
     try {
       const { startDate, endDate } = reservationDates
 
-      // Validate dates
       if (startDate >= endDate) {
         Alert.alert("Invalid Dates", "End date must be after start date")
         return
@@ -189,20 +191,49 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
         return
       }
 
-      // Create reservation
+      if (!planId) {
+        Alert.alert("Missing Plan", "No vacation plan selected. Please create or select one.")
+        return
+      }
+
       const reservationData = {
         usuario_id: auth.user.id,
         lugar_id: place.id,
         fecha_inicio: startDate.toISOString().split("T")[0],
         fecha_fin: endDate.toISOString().split("T")[0],
+        plan_id: planId,
       }
 
-      await createReservation(reservationData)
+      setLoading(true)
+      console.log("Creating reservation:", reservationData)
+
+      const result = await createReservation(reservationData)
+      console.log("Reservation created successfully:", result)
+
+      // Crear actividades por cada día de la reserva
+      const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+
+      for (let i = 0; i < days; i++) {
+        const currentDate = new Date(startDate)
+        currentDate.setDate(startDate.getDate() + i)
+
+        await createVacationActivity({
+          plan_id: planId,
+          lugar_id: place.id,
+          fecha: currentDate.toISOString().split("T")[0],
+          hora_inicio: null,
+          hora_fin: null,
+          notas: "Reserva de alojamiento",
+        })
+      }
+
       setShowReservationModal(false)
-      Alert.alert("Success", "Reservation created successfully")
+      Alert.alert("Success", "Reservation and activities added to your vacation")
     } catch (error) {
-      console.error("Error creating reservation:", error)
-      Alert.alert("Error", "Failed to create reservation")
+      console.error("Error in handleConfirmReservation:", error)
+      Alert.alert("Error", `Failed to create reservation: ${error.message || "Unknown error"}`)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -331,11 +362,9 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
             </View>
           )}
 
-          {(place.tipo === "alojamiento" || place.tipo === "hotel") && (
-            <TouchableOpacity style={styles.reserveButton} onPress={handleMakeReservation}>
-              <Text style={styles.reserveButtonText}>Make Reservation</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.reserveButton} onPress={handleMakeReservation}>
+            <Text style={styles.reserveButtonText}>Add to my itinerary</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -349,7 +378,7 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Make a Reservation</Text>
+              <Text style={styles.modalTitle}>Add to my itinerary</Text>
               <TouchableOpacity onPress={() => setShowReservationModal(false)}>
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
@@ -359,7 +388,7 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
               <Text style={styles.modalPlaceName}>{place.nombre}</Text>
 
               <View style={styles.datePickerContainer}>
-                <Text style={styles.datePickerLabel}>Check-in Date:</Text>
+                <Text style={styles.datePickerLabel}>Start Date:</Text>
                 <TouchableOpacity style={styles.datePickerButton} onPress={() => showDatepicker("start")}>
                   <Text style={styles.datePickerButtonText}>{formatDate(reservationDates.startDate)}</Text>
                   <Ionicons name="calendar-outline" size={20} color="#666" />
@@ -367,7 +396,7 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
               </View>
 
               <View style={styles.datePickerContainer}>
-                <Text style={styles.datePickerLabel}>Check-out Date:</Text>
+                <Text style={styles.datePickerLabel}>End Date:</Text>
                 <TouchableOpacity style={styles.datePickerButton} onPress={() => showDatepicker("end")}>
                   <Text style={styles.datePickerButtonText}>{formatDate(reservationDates.endDate)}</Text>
                   <Ionicons name="calendar-outline" size={20} color="#666" />
@@ -385,11 +414,11 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
               )}
 
               <View style={styles.reservationSummary}>
-                <Text style={styles.summaryTitle}>Reservation Summary</Text>
+                <Text style={styles.summaryTitle}>Summary</Text>
                 <View style={styles.summaryItem}>
                   <Text style={styles.summaryLabel}>Duration:</Text>
                   <Text style={styles.summaryValue}>
-                    {Math.ceil((reservationDates.endDate - reservationDates.startDate) / (1000 * 60 * 60 * 24))} nights
+                    {Math.ceil((reservationDates.endDate - reservationDates.startDate) / (1000 * 60 * 60 * 24))} days
                   </Text>
                 </View>
                 {place.precio && (
@@ -405,7 +434,7 @@ export default function PlaceDetailScreen({ onNavigate, auth, route }) {
               </View>
 
               <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmReservation}>
-                <Text style={styles.confirmButtonText}>Confirm Reservation</Text>
+                <Text style={styles.confirmButtonText}>Confirm</Text>
               </TouchableOpacity>
             </View>
           </View>

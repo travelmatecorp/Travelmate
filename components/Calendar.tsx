@@ -8,7 +8,17 @@ import { Ionicons } from "@expo/vector-icons"
 const { width } = Dimensions.get("window")
 
 // Types
+// Añadir esta interfaz para las fechas marcadas
+interface MarkedDateRange {
+  startDate: Date
+  endDate: Date
+  color: string
+}
+
+// Modificar la definición de props para incluir markedDates
 interface CalendarProps {
+  selectedStartDate?: Date | null
+  selectedEndDate?: Date | null
   onDateSelect?: (date: Date) => void
   selectedStartDate?: Date | null
   selectedEndDate?: Date | null
@@ -16,6 +26,8 @@ interface CalendarProps {
   minDate?: Date
   maxDate?: Date
   onMonthChange?: (month: number, year: number) => void
+  fullScreenMode?: boolean
+  markedDates?: MarkedDateRange[]
 }
 
 interface Day {
@@ -37,6 +49,8 @@ const Calendar: React.FC<CalendarProps> = ({
   minDate,
   maxDate,
   onMonthChange,
+  fullScreenMode = false,
+  markedDates,
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth())
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
@@ -62,6 +76,7 @@ const Calendar: React.FC<CalendarProps> = ({
 
   // Day names
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const today = new Date()
 
   // Generate calendar days
   useEffect(() => {
@@ -83,7 +98,6 @@ const Calendar: React.FC<CalendarProps> = ({
 
   const generateCalendarDays = () => {
     const days: Day[] = []
-    const today = new Date()
 
     // First day of the month
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1)
@@ -157,8 +171,17 @@ const Calendar: React.FC<CalendarProps> = ({
 
   // Helper function to check if a date is in the selected range
   const isDateInRange = (date: Date): boolean => {
-    if (!selectedStartDate || !selectedEndDate) return false
-    return date >= selectedStartDate && date <= selectedEndDate
+    // Verificar si la fecha está en el rango seleccionado
+    if (selectedStartDate && selectedEndDate) {
+      return date >= selectedStartDate && date <= selectedEndDate
+    }
+
+    // Verificar si la fecha está en alguno de los rangos marcados
+    if (markedDates && markedDates.length > 0) {
+      return markedDates.some((range) => date >= range.startDate && date <= range.endDate)
+    }
+
+    return false
   }
 
   // Navigate to previous month
@@ -236,6 +259,64 @@ const Calendar: React.FC<CalendarProps> = ({
     }
   }
 
+  // Modificar la función que determina el color de fondo de una fecha
+  const getDateBackgroundColor = (date: Date) => {
+    if (selectedStartDate && date.toDateString() === selectedStartDate.toDateString()) {
+      return "#cf3a23" // Color para fecha de inicio
+    }
+
+    if (selectedEndDate && date.toDateString() === selectedEndDate.toDateString()) {
+      return "#cf3a23" // Color para fecha de fin
+    }
+
+    if (isDateInRange(date)) {
+      // Si está en el rango seleccionado
+      if (selectedStartDate && selectedEndDate) {
+        return "rgba(207, 58, 35, 0.2)" // Color para fechas en el rango seleccionado
+      }
+
+      // Si está en alguno de los rangos marcados
+      if (markedDates && markedDates.length > 0) {
+        const matchingRange = markedDates.find((range) => date >= range.startDate && date <= range.endDate)
+        if (matchingRange) {
+          return `${matchingRange.color}40` // Añadir transparencia al color
+        }
+      }
+    }
+
+    return "transparent"
+  }
+
+  // Modificar la función que determina el color del texto de una fecha
+  const getDateTextColor = (date: Date) => {
+    if (
+      (selectedStartDate && date.toDateString() === selectedStartDate.toDateString()) ||
+      (selectedEndDate && date.toDateString() === selectedEndDate.toDateString())
+    ) {
+      return "white"
+    }
+
+    // Si la fecha está en el mes actual
+    if (date.getMonth() === currentMonth) {
+      // Si es hoy
+      if (date.toDateString() === today.toDateString()) {
+        return "#cf3a23"
+      }
+
+      // Si está en alguno de los rangos marcados
+      if (markedDates && markedDates.length > 0) {
+        const isInMarkedRange = markedDates.some((range) => date >= range.startDate && date <= range.endDate)
+        if (isInMarkedRange) {
+          return "#333" // Color más oscuro para fechas marcadas
+        }
+      }
+
+      return "#333" // Color normal para fechas del mes actual
+    }
+
+    return "#aaa" // Color para fechas de otros meses
+  }
+
   // Render day cell
   const renderDay = (day: Day, index: number) => {
     const dayStyles = [styles.dayCell]
@@ -270,39 +351,38 @@ const Calendar: React.FC<CalendarProps> = ({
     }
 
     // Determine if this day is disabled
-    const isDisabled = (minDate && day.date && day.date < minDate) || 
-                      (maxDate && day.date && day.date > maxDate) ||
-                      !day.inMonth
+    const isDisabled =
+      (minDate && day.date && day.date < minDate) || (maxDate && day.date && day.date > maxDate) || !day.inMonth
 
     return (
-      <TouchableOpacity 
-        key={index} 
-        style={dayStyles} 
-        onPress={() => handleDateSelect(day)} 
+      <TouchableOpacity
+        key={index}
+        style={dayStyles}
+        onPress={() => handleDateSelect(day)}
         disabled={isDisabled}
         activeOpacity={0.7}
       >
         {day.isInRange && (
-          <Animated.View 
+          <Animated.View
             style={[
               rangeBackgroundStyles,
               {
                 opacity: rangeHighlightAnim,
                 backgroundColor: rangeHighlightAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: ['rgba(207, 58, 35, 0)', 'rgba(207, 58, 35, 0.2)']
-                })
-              }
-            ]} 
+                  outputRange: ["rgba(207, 58, 35, 0)", getDateBackgroundColor(day.date)],
+                }),
+              },
+            ]}
           />
         )}
-        <Text style={textStyles}>{day.day}</Text>
+        <Text style={[textStyles, { color: getDateTextColor(day.date) }]}>{day.day}</Text>
       </TouchableOpacity>
     )
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, fullScreenMode && styles.fullScreenContainer]}>
       {/* Calendar header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={goToPreviousMonth} style={styles.navButton}>
@@ -341,6 +421,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  fullScreenContainer: {
+    flex: 1,
+    padding: 16,
   },
   header: {
     flexDirection: "row",

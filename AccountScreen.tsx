@@ -14,8 +14,9 @@ import {
   RefreshControl,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons"
+import { Ionicons } from "@expo/vector-icons"
 import { logout, getUserReservations, getAllUsers } from "./api"
+import BottomNavigation from "./components/BottomNavigation"
 
 export default function AccountScreen({ onNavigate, onLogout, user: initialUser }) {
   const [user, setUser] = useState(initialUser || null)
@@ -66,20 +67,15 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
           setUser(initialUser)
         }
       } else {
-        // If we don't have initial user data with ID, try to get all users
-        try {
-          const allUsers = await getAllUsers()
-          console.log("All users received:", allUsers)
-
-          // Just use the first user for demonstration
-          // In a real app, you would need proper authentication
-          if (allUsers && allUsers.length > 0) {
-            setUser(allUsers[0])
-          }
-        } catch (error) {
-          console.error("Error fetching all users:", error)
-          Alert.alert("Error", "Could not load user data. Please try again later.", [{ text: "OK" }])
-        }
+        // If we don't have initial user data with ID, use a default user
+        console.log("No initial user data, using default user")
+        setUser({
+          id: 1,
+          nombre: "Demo User",
+          email: "demo@example.com",
+          tipo: "normal",
+          favoritos: [],
+        })
       }
 
       // Fetch user reservations
@@ -121,13 +117,16 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
   }
 
   // Handle scroll events
-  const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-    useNativeDriver: true,
-    listener: (event) => {
-      const offsetY = event.nativeEvent.contentOffset.y
-      setIsScrolling(offsetY > 0)
-    },
-  })
+  const handleScroll = (event) => {
+    const offsetY = event.nativeEvent.contentOffset.y
+    scrollY.setValue(offsetY)
+    setIsScrolling(offsetY > 0)
+  }
+
+  // Handle navigation to account settings screens
+  const navigateToScreen = (screen) => {
+    onNavigate(screen, { user })
+  }
 
   if (loading && !user) {
     return (
@@ -190,7 +189,7 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
             <Text style={styles.userTypeBadgeText}>{isHost ? "Host" : "Traveler"}</Text>
           </View>
 
-          <TouchableOpacity style={styles.editProfileButton}>
+          <TouchableOpacity style={styles.editProfileButton} onPress={() => navigateToScreen("personalInformation")}>
             <Text style={styles.editProfileButtonText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
@@ -215,25 +214,25 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Account Settings</Text>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateToScreen("personalInformation")}>
             <Ionicons name="person-outline" size={24} color="#333" />
             <Text style={styles.menuItemText}>Personal Information</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateToScreen("paymentMethods")}>
             <Ionicons name="card-outline" size={24} color="#333" />
             <Text style={styles.menuItemText}>Payment Methods</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateToScreen("notifications")}>
             <Ionicons name="notifications-outline" size={24} color="#333" />
             <Text style={styles.menuItemText}>Notifications</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateToScreen("privacySecurity")}>
             <Ionicons name="shield-checkmark-outline" size={24} color="#333" />
             <Text style={styles.menuItemText}>Privacy & Security</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" style={styles.menuItemIcon} />
@@ -353,23 +352,7 @@ export default function AccountScreen({ onNavigate, onLogout, user: initialUser 
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("calendar")}>
-          <Ionicons name="calendar-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("rewards")}>
-          <MaterialCommunityIcons name="bookmark-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("map")}>
-          <Ionicons name="location-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => onNavigate("messages")}>
-          <Feather name="message-square" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.activeNavItem]}>
-          <Ionicons name="person" size={24} color="#cf3a23" />
-        </TouchableOpacity>
-      </View>
+      <BottomNavigation currentScreen="account" onNavigate={onNavigate} auth={{ isLoggedIn: true }} />
     </SafeAreaView>
   )
 }
@@ -600,26 +583,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
-  },
-  bottomNav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    backgroundColor: "white",
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 48,
-    height: 48,
-  },
-  activeNavItem: {
-    borderRadius: 24,
   },
 })

@@ -81,23 +81,23 @@ const MainScreen = ({ onNavigate, auth }) => {
     }
   }
 
-  // IMPORTANT: Fixed the navigation to PlaceDetailScreen
+  // Fix the navigation to PlaceDetailScreen
   const handlePlacePress = (item) => {
     console.log("Navigating to place detail with item:", item)
-    // Pass the ID in multiple formats to ensure compatibility
-    onNavigate("placeDetail", { 
-      id: item.id, 
+    // Pass the entire place object to ensure we have all the data
+    onNavigate("placeDetail", {
+      id: item.id,
       placeId: item.id,
       lugar_id: item.id,
-      place: item // Also pass the entire place object as a fallback
+      place: item, // Pass the entire place object
+      planId: vacationPlan?.id
+
+      
     })
   }
 
   const renderListingItem = ({ item, type }) => (
-    <TouchableOpacity 
-      style={styles.listingCard} 
-      onPress={() => handlePlacePress(item)}
-    >
+    <TouchableOpacity style={styles.listingCard} onPress={() => handlePlacePress(item)}>
       <Image
         source={{
           uri:

@@ -48,12 +48,12 @@ export default function LoginScreen({ onLogin, onNavigate }) {
     } catch (error) {
       console.error("Login error:", error)
       setError(error.error || "Login failed. Please try again.")
-      
+
       // Show more detailed error for debugging
       Alert.alert(
         "Login Error",
         "There was an error connecting to the server. Please check your network connection and make sure the server is running.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       )
     } finally {
       setIsLoading(false)

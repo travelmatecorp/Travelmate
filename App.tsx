@@ -21,6 +21,12 @@ import { VacationProvider } from "./context/VacationContext"
 import PlaceDetailScreen from "./PlaceDetailScreen"
 import VacationTimelineScreen from "./VacationTimelineScreen"
 
+// Añadir las importaciones de las nuevas pantallas al inicio del archivo, junto con las otras importaciones
+import PersonalInformationScreen from "./account/PersonalInformationScreen"
+import PaymentMethodsScreen from "./account/PaymentMethodsScreen"
+import NotificationsScreen from "./account/NotificationsScreen"
+import PrivacySecurityScreen from "./account/PrivacySecurityScreen"
+
 // Initialize auth with default values
 const initialAuthState = {
   isLoggedIn: false,
@@ -81,20 +87,11 @@ export default function App() {
   }
 
   const handleNavigate = (screen, params = {}) => {
-    // Check if the screen requires authentication
-    if ((screen === "addPlace" || screen === "account") && !auth.isLoggedIn) {
-      // If not logged in and trying to access protected screens, redirect to login
-      setCurrentScreen("login")
-      return
-    }
+    console.log(`[NAVIGATE] To screen: ${screen} with params:`, params)
 
-    // Set route params if provided
-    if (Object.keys(params).length > 0) {
-      setRouteParams(params)
-    }
-
-    // Otherwise, navigate normally
+    // Asegurarse de siempre setear los params, incluso si están vacíos
     setCurrentScreen(screen)
+    setRouteParams(params || {})
   }
 
   // Show loading screen while checking authentication
@@ -108,6 +105,9 @@ export default function App() {
 
   // Screen renderer
   const renderScreen = () => {
+    // Ensure routeParams is always an object
+    const safeRouteParams = routeParams || {}
+
     switch (currentScreen) {
       case "home":
         return <HomeScreen onNavigate={handleNavigate} auth={auth} />
@@ -120,17 +120,31 @@ export default function App() {
       case "register":
         return <RegisterScreen onRegister={handleRegister} onNavigate={handleNavigate} />
       case "messages":
-        return <MessagesScreen onNavigate={handleNavigate} auth={auth} />
+        return <MessagesScreen onNavigate={handleNavigate} auth={auth} route={safeRouteParams} />
       case "calendar":
-        return <CalendarScreen onNavigate={handleNavigate} auth={auth} route={routeParams} />
+        return <CalendarScreen onNavigate={handleNavigate} auth={auth} route={safeRouteParams} />
       case "map":
-        return <MapScreen onNavigate={handleNavigate} auth={auth} route={routeParams} />
+        return <MapScreen onNavigate={handleNavigate} auth={auth} route={safeRouteParams} />
       case "addPlace":
         return <AddPlaceScreen onNavigate={handleNavigate} auth={auth} />
       case "placeDetail":
-        return <PlaceDetailScreen onNavigate={handleNavigate} auth={auth} route={routeParams} />
+        return <PlaceDetailScreen onNavigate={handleNavigate} auth={auth} route={safeRouteParams} />
       case "vacationTimeline":
-        return <VacationTimelineScreen onNavigate={handleNavigate} auth={auth} route={routeParams} />
+        return <VacationTimelineScreen onNavigate={handleNavigate} auth={auth} route={{ params: safeRouteParams }} />
+      // Añadir los nuevos casos para las pantallas de cuenta
+      case "personalInformation":
+        return (
+          <PersonalInformationScreen
+            navigation={{ goBack: () => handleNavigate("account") }}
+            route={{ params: { user: auth.user } }}
+          />
+        )
+      case "paymentMethods":
+        return <PaymentMethodsScreen navigation={{ goBack: () => handleNavigate("account") }} />
+      case "notifications":
+        return <NotificationsScreen navigation={{ goBack: () => handleNavigate("account") }} />
+      case "privacySecurity":
+        return <PrivacySecurityScreen navigation={{ goBack: () => handleNavigate("account") }} />
       default:
         return <HomeScreen onNavigate={handleNavigate} auth={auth} />
     }

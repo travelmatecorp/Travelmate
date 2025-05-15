@@ -2,7 +2,7 @@ const mysql = require("mysql2")
 
 // Database configuration
 const db = mysql.createConnection({
-  host: "172.16.6.214", // IP of the VM
+  host: "172.16.100.5", // IP of the VM
   user: "pepe",
   password: "Enzolorenzo1111*",
   database: "TravelMate",

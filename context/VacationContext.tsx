@@ -36,7 +36,7 @@ interface Reservation {
   place: Place
   startDate: Date
   endDate: Date
-  status: 'pending' | 'confirmed' | 'cancelled'
+  status: "pending" | "confirmed" | "cancelled"
   createdAt: Date
 }
 
@@ -108,26 +108,26 @@ export const VacationProvider: React.FC<{ children: ReactNode }> = ({ children }
   }
 
   const addReservation = (reservation: Reservation) => {
-    setReservations(prev => [...prev, reservation])
-    
+    setReservations((prev) => [...prev, reservation])
+
     // Also add to vacation plan if it exists
     if (vacationPlan) {
       const updatedPlan = {
         ...vacationPlan,
-        reservations: [...(vacationPlan.reservations || []), reservation]
+        reservations: [...(vacationPlan.reservations || []), reservation],
       }
       setVacationPlan(updatedPlan)
     }
   }
 
   const removeReservation = (reservationId: string) => {
-    setReservations(prev => prev.filter(r => r.id !== reservationId))
-    
+    setReservations((prev) => prev.filter((r) => r.id !== reservationId))
+
     // Also remove from vacation plan if it exists
     if (vacationPlan && vacationPlan.reservations) {
       const updatedPlan = {
         ...vacationPlan,
-        reservations: vacationPlan.reservations.filter(r => r.id !== reservationId)
+        reservations: vacationPlan.reservations.filter((r) => r.id !== reservationId),
       }
       setVacationPlan(updatedPlan)
     }

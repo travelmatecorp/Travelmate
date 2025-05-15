@@ -228,8 +228,6 @@ export async function createVacationPlan(planData) {
 }
 
 // Update vacation plan
-// Update vacation plan
-// Update vacation plan
 export async function updateVacationPlan(planId, planData) {
   try {
     const response = await api.put(`api/planes-vacaciones/${planId}`, planData)
@@ -262,7 +260,7 @@ export async function updateVacationPlan(planId, planData) {
 // Get vacation activities
 export async function getVacationActivities(params = {}) {
   try {
-    const response = await api.get("api/actividades-vacaciones", { params })
+    const response = await api.get("api/actividades_vacaciones", { params })
     return response.data
   } catch (error) {
     console.error("Error fetching vacation activities:", error)
@@ -274,10 +272,9 @@ export async function getVacationActivities(params = {}) {
 }
 
 // Create vacation activity
-// Create vacation activity
 export async function createVacationActivity(activityData) {
   try {
-    const response = await api.post("api/actividades-vacaciones", activityData)
+    const response = await api.post("api/actividades_vacaciones", activityData)
     return response.data
   } catch (error) {
     console.error("Error creating vacation activity:", error)
@@ -289,10 +286,9 @@ export async function createVacationActivity(activityData) {
 }
 
 // Delete vacation activity
-// Delete vacation activity
 export async function deleteVacationActivity(activityId) {
   try {
-    const response = await api.delete(`api/actividades-vacaciones/${activityId}`)
+    const response = await api.delete(`api/actividades_vacaciones/${activityId}`)
     return response.data
   } catch (error) {
     console.error("Error deleting vacation activity:", error)
@@ -458,6 +454,7 @@ export async function getUserReservations() {
   }
 }
 
+
 // Format date to dd/mm/yyyy
 export function formatDate(date) {
   if (!date) return ""
@@ -476,6 +473,34 @@ export async function getAllUsers() {
   } catch (error) {
     console.error("Get all users error:", error)
     throw { error: error.response?.data?.error || "Failed to get users" }
+  }
+}
+
+// Delete vacation plan - FIXED to use axios instead of fetch
+export async function deleteVacationPlan(planId) {
+  try {
+    console.log(`Deleting vacation plan with ID: ${planId}`)
+    const response = await api.delete(`api/planes-vacaciones/${planId}`)
+
+    // Return the data directly from the axios response
+    return response.data
+  } catch (error) {
+    console.error("Error deleting vacation plan:", error)
+
+    // Improved error handling
+    if (error.response) {
+      // The server responded with an error status
+      throw {
+        error: error.response.data?.error || "Failed to delete vacation plan",
+        status: error.response.status,
+      }
+    } else if (error.request) {
+      // No response received
+      throw { error: "No response from server. Please check your connection.", status: 503 }
+    } else {
+      // Request setup error
+      throw { error: error.message || "An unexpected error occurred", status: 500 }
+    }
   }
 }
 

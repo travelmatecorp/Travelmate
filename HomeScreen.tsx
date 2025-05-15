@@ -375,11 +375,7 @@ export default function HomeScreen({ onNavigate, auth }) {
         </ScrollView>
       )}
 
-      <BottomNavigation 
-        currentScreen="home"
-        onNavigate={onNavigate}
-        auth={auth}
-      />
+      <BottomNavigation currentScreen="home" onNavigate={onNavigate} auth={auth} />
     </SafeAreaView>
   )
 }

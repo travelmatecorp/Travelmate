@@ -11,8 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-  SafeAreaView,
 } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
 import BottomNavigation from "./components/BottomNavigation"
 
@@ -208,76 +208,76 @@ export default function MessagesScreen({ onNavigate, auth, route }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-    {activeConversation ? (
-      // Chat view
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardAvoidingView}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBackToConversations} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="black" />
-          </TouchableOpacity>
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>{activeConversation.name}</Text>
-            <Text style={styles.headerSubtitle}>{activeConversation.isOnline ? "Online" : "Offline"}</Text>
+      {activeConversation ? (
+        // Chat view
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleBackToConversations} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="black" />
+            </TouchableOpacity>
+            <View style={styles.headerInfo}>
+              <Text style={styles.headerTitle}>{activeConversation.name}</Text>
+              <Text style={styles.headerSubtitle}>{activeConversation.isOnline ? "Online" : "Offline"}</Text>
+            </View>
+            <TouchableOpacity style={styles.headerAction}>
+              <Ionicons name="call-outline" size={22} color="black" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.headerAction}>
-            <Ionicons name="call-outline" size={22} color="black" />
-          </TouchableOpacity>
-        </View>
 
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessageItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.messagesList}
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        />
-
-        <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.attachButton}>
-            <Ionicons name="attach" size={24} color="#666" />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.input}
-            placeholder="Type a message..."
-            value={newMessage}
-            onChangeText={setNewMessage}
-            multiline
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            renderItem={renderMessageItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.messagesList}
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
           />
-          <TouchableOpacity
-            style={[styles.sendButton, newMessage.trim() === "" && styles.sendButtonDisabled]}
-            onPress={handleSendMessage}
-            disabled={newMessage.trim() === ""}
-          >
-            <Ionicons name="send" size={20} color="white" />
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    ) : (
-      // Conversations list view
-      <>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Messages</Text>
-          <TouchableOpacity style={styles.headerAction}>
-            <Ionicons name="create-outline" size={24} color="black" />
-          </TouchableOpacity>
-        </View>
 
-        <FlatList
-          data={conversations}
-          renderItem={renderConversationItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.conversationsList}
-        />
+          <View style={styles.inputContainer}>
+            <TouchableOpacity style={styles.attachButton}>
+              <Ionicons name="attach" size={24} color="#666" />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.input}
+              placeholder="Type a message..."
+              value={newMessage}
+              onChangeText={setNewMessage}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, newMessage.trim() === "" && styles.sendButtonDisabled]}
+              onPress={handleSendMessage}
+              disabled={newMessage.trim() === ""}
+            >
+              <Ionicons name="send" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      ) : (
+        // Conversations list view
+        <>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Messages</Text>
+            <TouchableOpacity style={styles.headerAction}>
+              <Ionicons name="create-outline" size={24} color="black" />
+            </TouchableOpacity>
+          </View>
 
-        <BottomNavigation currentScreen="messages" onNavigate={onNavigate} auth={auth} />
-      </>
-    )}
-  </SafeAreaView>
+          <FlatList
+            data={conversations}
+            renderItem={renderConversationItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.conversationsList}
+          />
+
+          <BottomNavigation currentScreen="messages" onNavigate={onNavigate} auth={auth} />
+        </>
+      )}
+    </SafeAreaView>
   )
 }
 
